@@ -23,6 +23,7 @@ import { edit as addGroup, getList as getGroupList } from '@/api/panel/itemIconG
 import { addMultiple as addMultipleIcons, getListByGroupId } from '@/api/panel/itemIcon'
 import { exportBackup, restoreBackup } from '@/api/panel/backup'
 import { t } from '@/locales'
+import { useAuthStore } from '@/store'
 
 interface ItemGroup extends Panel.ItemIconGroup {
   items?: Panel.ItemInfo[]
@@ -30,7 +31,9 @@ interface ItemGroup extends Panel.ItemIconGroup {
 
 const ms = useMessage()
 const dialog = useDialog()
+const authStore = useAuthStore()
 
+const activeTab = ref(authStore.userInfo?.role === 1 ? 'full-backup' : 'card-backup')
 const importWarning = ref<string[]>([])
 const importRoundModalShow = ref(false)
 const exportRoundModalShow = ref(false)
@@ -248,9 +251,9 @@ async function handleStartImport() {
 
 <template>
   <div class="h-full w-full overflow-y-auto px-4 py-2 box-border">
-    <NTabs type="line" animated>
-      <!-- 全量整站备份与数据迁移 -->
-      <NTabPane name="full-backup" tab="📦 整站数据备份与恢复 (ZIP)">
+    <NTabs v-model:value="activeTab" type="line" animated>
+      <!-- 全量整站备份与数据迁移 (仅管理员可见) -->
+      <NTabPane v-if="authStore.userInfo?.role === 1" name="full-backup" tab="📦 整站数据备份与恢复 (ZIP)">
         <div class="space-y-4 pt-2 pb-6">
           <NAlert type="info" :bordered="false" class="text-xs">
             <template #header>

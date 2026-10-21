@@ -35,27 +35,23 @@ type SiteBackupData struct {
 // ExportBackup 导出全站备份 (ZIP 文件流下载)
 func (b *BackupApi) ExportBackup(c *gin.Context) {
 	userInfo, _ := base.GetCurrentUserInfo(c)
+	if userInfo.Role != 1 {
+		apiReturn.Error(c, "权限不足，仅系统管理员可导出整站备份")
+		return
+	}
 
 	var backup SiteBackupData
 	backup.Version = "v1.3.1-backup"
 	backup.ExportTime = time.Now().Format("2006-01-02 15:04:05")
 	backup.Operator = userInfo.Username
 
-	// 查询数据
-	if userInfo.Role == 1 {
-		// 管理员权限备份全站数据
-		global.Db.Find(&backup.Users)
-		global.Db.Find(&backup.ItemIconGroups)
-		global.Db.Find(&backup.ItemIcons)
-		global.Db.Find(&backup.UserConfigs)
-		global.Db.Find(&backup.SystemSettings)
-		global.Db.Find(&backup.ModuleConfigs)
-	} else {
-		// 普通用户备份自己的数据
-		global.Db.Where("user_id = ?", userInfo.ID).Find(&backup.ItemIconGroups)
-		global.Db.Where("user_id = ?", userInfo.ID).Find(&backup.ItemIcons)
-		global.Db.Where("user_id = ?", userInfo.ID).Find(&backup.UserConfigs)
-	}
+	// 仅管理员权限备份全站数据
+	global.Db.Find(&backup.Users)
+	global.Db.Find(&backup.ItemIconGroups)
+	global.Db.Find(&backup.ItemIcons)
+	global.Db.Find(&backup.UserConfigs)
+	global.Db.Find(&backup.SystemSettings)
+	global.Db.Find(&backup.ModuleConfigs)
 
 	jsonData, err := json.MarshalIndent(backup, "", "  ")
 	if err != nil {
@@ -120,6 +116,10 @@ func (b *BackupApi) ExportJson(c *gin.Context) {
 // RestoreBackup 从上传的 ZIP 或 JSON 恢复全站数据
 func (b *BackupApi) RestoreBackup(c *gin.Context) {
 	userInfo, _ := base.GetCurrentUserInfo(c)
+	if userInfo.Role != 1 {
+		apiReturn.Error(c, "权限不足，仅系统管理员可执行全站备份恢复")
+		return
+	}
 
 	file, fileHeader, err := c.Request.FormFile("file")
 	if err != nil {

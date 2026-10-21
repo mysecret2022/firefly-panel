@@ -55,11 +55,6 @@ const apps = ref<App[]>([
     componentName: 'ImportExport',
     icon: 'icon-park-outline-import-and-export',
   },
-  {
-    name: t('apps.about.appName'),
-    componentName: 'About',
-    icon: 'lucide-info',
-  },
 ])
 
 const authStore = useAuthStore()
@@ -107,10 +102,19 @@ onMounted(() => {
     iconImg: cloudIcon,
     auth: 1,
   }
+  const aboutApp: App = {
+    name: t('apps.about.appName'),
+    componentName: 'About',
+    icon: 'lucide-info',
+  }
   // 初始化
   if (authStore.userInfo?.role === 1) {
     apps.value.push(adminApp)
     apps.value.push(cloudStorageApp)
+    apps.value.push(aboutApp)
+  }
+  else {
+    apps.value.push(aboutApp)
   }
 
   window.addEventListener('resize', handleResize)

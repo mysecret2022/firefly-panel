@@ -18,6 +18,11 @@ func InitFileRouter(router *gin.RouterGroup) {
 
 		private.POST("/file/getList", FileApi.GetList)
 		private.POST("/file/deletes", FileApi.Deletes)
+		private.POST("/file/applySync", FileApi.ApplySyncToCloud)
+		private.POST("/file/uploadToCloud", FileApi.UploadToCloud)
+		private.GET("/file/auditList", FileApi.AuditList)
+		private.POST("/file/auditAction", FileApi.AuditAction)
+		private.GET("/file/publicIcons", FileApi.GetPublicIcons)
 
 	}
 

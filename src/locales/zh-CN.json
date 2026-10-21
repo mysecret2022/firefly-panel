@@ -105,7 +105,7 @@
     },
     "uploadsFileManager": {
       "alertText": "你可以在这里管理你上传过的壁纸和图标",
-      "appName": "上传文件管理",
+      "appName": "图库管理",
       "copyFailed": "复制失败",
       "copyLink": "复制链接",
       "copySuccess": "链接复制成功，可以在图标地址栏",

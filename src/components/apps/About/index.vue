@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { NDivider, NGradientText, NTag } from 'naive-ui'
-import srcSvglogo from '@/assets/logo.svg'
+import srcSvglogo from '@/assets/about_logo.png'
 
-const frontVersion = '1.0.1'
+const frontVersion = '1.0.2'
 </script>
 
 <template>
@@ -30,10 +30,10 @@ const frontVersion = '1.0.1'
       </div>
       <div class="text-gray-700 dark:text-gray-300">
         <span class="font-semibold">二次开发作者：</span>
-        <span class="font-bold text-green-600 dark:text-green-400">roland</span>
+        <span class="font-bold text-green-600 dark:text-green-400">Roland</span>
       </div>
       <div class="mt-2 text-sm text-gray-400">
-        基于 hslr-s/sun-panel 开源二次开发，集成整站备份与迁移能力
+        基于 hslr-s/sun-panel 开源二次开发，集成整站备份、多云漫游图床与图库管理能力
       </div>
 
       <div class="mt-4">
@@ -44,7 +44,7 @@ const frontVersion = '1.0.1'
 
       <div class="mt-4">
         <NTag :bordered="false" size="small" type="success">
-          Firefly-panel v1.0.1
+          Firefly-panel v1.0.2
         </NTag>
       </div>
     </div>

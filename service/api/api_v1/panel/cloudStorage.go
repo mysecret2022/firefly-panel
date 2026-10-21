@@ -508,3 +508,92 @@ func (a *CloudStorageApi) SyncAllImagesToLocal(c *gin.Context) {
 		"message":     fmt.Sprintf("同步完成！共发现 %d 张云端图片，已成功同步 %d 张到本地存储", len(items), syncedCount),
 	})
 }
+
+// DeleteCloudImages 批量删除云端图片 (仅管理员)
+func (a *CloudStorageApi) DeleteCloudImages(c *gin.Context) {
+	userInfo, _ := base.GetCurrentUserInfo(c)
+	if userInfo.Role != 1 {
+		apiReturn.Error(c, "权限不足，仅管理员可删除云端图片")
+		return
+	}
+
+	var req struct {
+		Paths []string `json:"paths"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.Paths) == 0 {
+		apiReturn.Error(c, "请求参数错误，未指定待删除的文件")
+		return
+	}
+
+	cfg, err := getStorageConfig()
+	if err != nil {
+		apiReturn.Error(c, "读取存储配置失败")
+		return
+	}
+	client, err := cloudClient.CreateCloudClient(cfg)
+	if err != nil {
+		apiReturn.Error(c, "创建云端客户端失败: "+err.Error())
+		return
+	}
+
+	successCount := 0
+	failCount := 0
+	for _, p := range req.Paths {
+		if strings.TrimSpace(p) == "" {
+			continue
+		}
+		if err := client.DeleteFile(p); err != nil {
+			failCount++
+		} else {
+			successCount++
+		}
+	}
+
+	apiReturn.SuccessData(c, gin.H{
+		"successCount": successCount,
+		"failCount":    failCount,
+		"message":      fmt.Sprintf("批量删除完成: 成功删除 %d 张，失败 %d 张", successCount, failCount),
+	})
+}
+
+// ClearAllCloudImages 清空云端所有图片 (仅管理员)
+func (a *CloudStorageApi) ClearAllCloudImages(c *gin.Context) {
+	userInfo, _ := base.GetCurrentUserInfo(c)
+	if userInfo.Role != 1 {
+		apiReturn.Error(c, "权限不足，仅管理员可清空云端图片")
+		return
+	}
+
+	cfg, err := getStorageConfig()
+	if err != nil {
+		apiReturn.Error(c, "读取存储配置失败")
+		return
+	}
+	client, err := cloudClient.CreateCloudClient(cfg)
+	if err != nil {
+		apiReturn.Error(c, "创建云端客户端失败: "+err.Error())
+		return
+	}
+
+	items, err := client.ListFiles("images")
+	if err != nil {
+		apiReturn.Error(c, "获取云端图片列表失败: "+err.Error())
+		return
+	}
+
+	successCount := 0
+	for _, it := range items {
+		if it.IsDirectory {
+			continue
+		}
+		if err := client.DeleteFile(it.Path); err == nil {
+			successCount++
+		}
+	}
+
+	apiReturn.SuccessData(c, gin.H{
+		"deletedCount": successCount,
+		"message":      fmt.Sprintf("已清空云端图床，共删除 %d 张图片", successCount),
+	})
+}
+

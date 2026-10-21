@@ -91,3 +91,16 @@ export function syncAllImagesToLocal() {
     url: '/panel/storage/syncAllImages',
   })
 }
+
+export function deleteCloudImages(paths: string[]) {
+  return post<{ successCount: number; failCount: number; message: string }>({
+    url: '/panel/storage/deleteImages',
+    data: { paths },
+  })
+}
+
+export function clearCloudImages() {
+  return post<{ deletedCount: number; message: string }>({
+    url: '/panel/storage/clearImages',
+  })
+}

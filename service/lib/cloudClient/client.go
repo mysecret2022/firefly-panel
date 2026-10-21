@@ -58,6 +58,7 @@ type CloudStorageClient interface {
 	UploadFile(relativePath string, data []byte, contentType string) (string, error)
 	DownloadFile(relativePath string) ([]byte, error)
 	ListFiles(subDir string) ([]FileItem, error)
+	DeleteFile(relativePath string) error
 }
 
 func CreateCloudClient(cfg CloudStorageConfig) (CloudStorageClient, error) {
@@ -279,6 +280,69 @@ func (g *GitHubClient) ListFiles(subDir string) ([]FileItem, error) {
 	return result, nil
 }
 
+// DeleteFile 从 GitHub 仓库中删除指定文件
+func (g *GitHubClient) DeleteFile(relativePath string) error {
+	fullPath := strings.TrimPrefix(path.Join(g.Config.BasePath, relativePath), "/")
+	getApiUrl := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/%s?ref=%s", g.Config.Owner, g.Config.Repo, fullPath, g.Config.Branch)
+
+	// 1. 先通过 GET 获取文件的 sha
+	req, err := http.NewRequest("GET", getApiUrl, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+g.Config.Token)
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	resp, err := g.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == 404 {
+		return nil
+	}
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("查询待删除文件失败 (%d)", resp.StatusCode)
+	}
+
+	var meta struct {
+		Sha string `json:"sha"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&meta); err != nil {
+		return err
+	}
+
+	// 2. 调用 DELETE 接口删除文件
+	delApiUrl := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/%s", g.Config.Owner, g.Config.Repo, fullPath)
+	delPayload := map[string]string{
+		"message": "Delete " + path.Base(relativePath) + " via Firefly-panel",
+		"sha":     meta.Sha,
+		"branch":  g.Config.Branch,
+	}
+	payloadBytes, _ := json.Marshal(delPayload)
+
+	delReq, err := http.NewRequest("DELETE", delApiUrl, bytes.NewReader(payloadBytes))
+	if err != nil {
+		return err
+	}
+	delReq.Header.Set("Authorization", "Bearer "+g.Config.Token)
+	delReq.Header.Set("Accept", "application/vnd.github.v3+json")
+	delReq.Header.Set("Content-Type", "application/json")
+
+	delResp, err := g.client.Do(delReq)
+	if err != nil {
+		return err
+	}
+	defer delResp.Body.Close()
+
+	if delResp.StatusCode != 200 && delResp.StatusCode != 204 {
+		b, _ := io.ReadAll(delResp.Body)
+		return fmt.Errorf("GitHub 删除文件失败 (%d): %s", delResp.StatusCode, string(b))
+	}
+	return nil
+}
+
 // ======================== Cloudflare R2 / S3 兼容实现 ========================
 
 type R2Client struct {
@@ -445,6 +509,31 @@ func (r *R2Client) ListFiles(prefix string) ([]FileItem, error) {
 		})
 	}
 	return result, nil
+}
+
+// DeleteFile 从 Cloudflare R2 中删除指定文件
+func (r *R2Client) DeleteFile(relativePath string) error {
+	cleanPath := strings.TrimPrefix(relativePath, "/")
+	endpoint := fmt.Sprintf("https://%s.r2.cloudflarestorage.com/%s/%s",
+		r.Config.AccountID, r.Config.BucketName, cleanPath)
+
+	req, err := http.NewRequest("DELETE", endpoint, nil)
+	if err != nil {
+		return err
+	}
+	signS3Request(req, r.Config.AccessKeyID, r.Config.SecretAccessKey, "auto", "s3")
+
+	resp, err := r.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 && resp.StatusCode != 404 {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("R2 删除文件失败 (%d): %s", resp.StatusCode, string(b))
+	}
+	return nil
 }
 
 // AWS V4 签名计算辅助函数

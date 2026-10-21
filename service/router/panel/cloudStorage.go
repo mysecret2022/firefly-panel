@@ -20,5 +20,7 @@ func InitCloudStorage(router *gin.RouterGroup) {
 		r.GET("/panel/storage/listImages", api.ListCloudImages)
 		r.POST("/panel/storage/syncImage", api.SyncImageToLocal)
 		r.POST("/panel/storage/syncAllImages", api.SyncAllImagesToLocal)
+		r.POST("/panel/storage/deleteImages", api.DeleteCloudImages)
+		r.POST("/panel/storage/clearImages", api.ClearAllCloudImages)
 	}
 }
