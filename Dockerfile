@@ -1,0 +1,46 @@
+# Stage 1: Build Frontend
+FROM node:18-alpine AS web_image
+
+WORKDIR /build
+
+RUN npm install pnpm -g
+
+COPY ./package.json ./pnpm-lock.yaml ./
+
+RUN pnpm install --frozen-lockfile || pnpm install
+
+COPY . .
+
+RUN pnpm run build-only
+
+# Stage 2: Build Backend
+FROM golang:1.21-alpine3.18 AS server_image
+
+WORKDIR /build
+
+COPY ./service .
+
+RUN apk add --no-cache bash curl gcc git musl-dev
+
+RUN go env -w GO111MODULE=on \
+    && export PATH=$PATH:/go/bin \
+    && go install -a -v github.com/go-bindata/go-bindata/...@latest \
+    && go install -a -v github.com/elazarl/go-bindata-assetfs/...@latest \
+    && go-bindata-assetfs -o=assets/bindata.go -pkg=assets assets/... \
+    && go build -o sun-panel --ldflags="-X sun-panel/global.RUNCODE=release -X sun-panel/global.ISDOCKER=docker" main.go
+
+# Stage 3: Runtime
+FROM alpine:3.18
+
+WORKDIR /app
+
+COPY --from=web_image /build/dist /app/web
+COPY --from=server_image /build/sun-panel /app/sun-panel
+
+EXPOSE 3002
+
+RUN apk add --no-cache bash ca-certificates su-exec tzdata \
+    && chmod +x ./sun-panel \
+    && ./sun-panel -config
+
+CMD ["./sun-panel"]
