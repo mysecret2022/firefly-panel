@@ -52,7 +52,8 @@ const testLoading = ref(false)
 const saveLoading = ref(false)
 const backupUploading = ref(false)
 const syncAllLoading = ref(false)
-const activeTab = ref('config')
+const activeTab = ref('images') // 默认进入云端漫游图床
+const cloudCategory = ref<'all' | 'wallpapers' | 'icons'>('all')
 
 // 配置表单
 const form = ref<CloudStorageConfig>({
@@ -73,13 +74,6 @@ const form = ref<CloudStorageConfig>({
     bucketName: '',
     publicDomain: '',
   },
-})
-
-// 仓库公私检测结果
-const repoCheckResult = ref<{ tested: boolean; isPrivate: boolean; desc: string }>({
-  tested: false,
-  isPrivate: false,
-  desc: '',
 })
 
 // 备份与图片列表
@@ -121,6 +115,25 @@ function formatDate(d: string | Date) {
   const date = new Date(d)
   return date.toLocaleString('zh-CN', { hour12: false })
 }
+
+// 根据分类筛选云端图片
+const filteredCloudImages = computed(() => {
+  if (cloudCategory.value === 'wallpapers') {
+    return cloudImages.value.filter(img =>
+      img.path.includes('/wallpapers/')
+      || img.name.includes('wallpaper')
+      || img.size > 200 * 1024,
+    )
+  }
+  if (cloudCategory.value === 'icons') {
+    return cloudImages.value.filter(img =>
+      img.path.includes('/icons/')
+      || img.name.includes('icon')
+      || img.size <= 200 * 1024,
+    )
+  }
+  return cloudImages.value
+})
 
 // 加载配置
 async function fetchConfig() {
@@ -164,11 +177,6 @@ async function handleTestConnection() {
   try {
     const res: any = await testCloudConnection(form.value)
     if (res.code === 0 && res.data) {
-      repoCheckResult.value = {
-        tested: true,
-        isPrivate: res.data.isPrivate,
-        desc: res.data.description,
-      }
       ms.success(`连接测试成功: ${res.data.description}`)
     }
     else {
@@ -248,10 +256,11 @@ function toggleSelectCloudImage(path: string) {
 }
 
 function handleSelectAllCloudImages() {
-  if (selectedCloudPaths.value.length === cloudImages.value.length && cloudImages.value.length > 0)
+  const currentPaths = filteredCloudImages.value.map(i => i.path)
+  if (selectedCloudPaths.value.length === currentPaths.length && currentPaths.length > 0)
     selectedCloudPaths.value = []
   else
-    selectedCloudPaths.value = cloudImages.value.map(i => i.path)
+    selectedCloudPaths.value = currentPaths
 }
 
 // 批量删除选中的云端图片
@@ -263,7 +272,7 @@ function handleDeleteSelectedCloudImages() {
   const count = selectedCloudPaths.value.length
   dialog.warning({
     title: '批量删除云端图片',
-    content: `确定要从云端永久删除选中的 ${count} 张图片吗？`,
+    content: `确定要从云端永久删除选中的 ${count} 张图片吗？(为避免触发 GitHub 频次限制，系统将保守限流删除)`,
     positiveText: '确认删除',
     negativeText: '取消',
     onPositiveClick: async () => {
@@ -362,8 +371,7 @@ async function fetchAuditList() {
       selectedAuditIds.value = []
     }
   }
-  catch (e) {
-  }
+  catch (e) {}
   finally {
     auditLoading.value = false
   }
@@ -539,16 +547,18 @@ async function handleSyncAllImages() {
 
 // Tab 切换监听
 function onTabChange(tab: string) {
-  if (tab === 'backups')
-    fetchBackups()
-  else if (tab === 'images')
+  if (tab === 'images')
     fetchImages()
   else if (tab === 'audit')
     fetchAuditList()
+  else if (tab === 'backups')
+    fetchBackups()
+  else if (tab === 'config')
+    fetchConfig()
 }
 
 onMounted(() => {
-  fetchConfig()
+  fetchImages()
   fetchAuditList()
 })
 </script>
@@ -557,7 +567,223 @@ onMounted(() => {
   <div class="h-full overflow-y-auto px-4 py-2">
     <NSpin :show="loading">
       <NTabs v-model:value="activeTab" type="line" animated @update:value="onTabChange">
-        <!-- TAB 1: 存储配置 -->
+        <!-- 第 1 页: 云端漫游图床 (默认优先展示) -->
+        <NTabPane name="images" tab="🖼️ 云端漫游图床">
+          <NCard size="small" class="mt-2 shadow-sm rounded-lg">
+            <template #header>
+              <div class="flex items-center gap-3">
+                <span class="font-medium text-sm">云端图库与多端漫游</span>
+                <NTabs v-model:value="cloudCategory" type="segment" size="small" class="w-auto">
+                  <NTabPane name="all" tab="全部" />
+                  <NTabPane name="wallpapers" tab="🌄 壁纸图床" />
+                  <NTabPane name="icons" tab="🎨 应用图床" />
+                </NTabs>
+              </div>
+            </template>
+
+            <template #header-extra>
+              <NSpace align="center">
+                <NButton size="tiny" secondary @click="fetchImages">
+                  <template #icon>
+                    <SvgIcon icon="material-symbols:refresh" />
+                  </template>
+                  刷新
+                </NButton>
+                <NButton size="tiny" secondary @click="handleSelectAllCloudImages">
+                  {{ selectedCloudPaths.length === filteredCloudImages.length && filteredCloudImages.length > 0 ? '取消全选' : '全选当前' }}
+                </NButton>
+                <NButton
+                  v-if="selectedCloudPaths.length > 0"
+                  size="tiny"
+                  type="error"
+                  secondary
+                  @click="handleDeleteSelectedCloudImages"
+                >
+                  <template #icon>
+                    <SvgIcon icon="material-symbols:delete" />
+                  </template>
+                  批量删除 ({{ selectedCloudPaths.length }})
+                </NButton>
+                <NButton
+                  v-if="cloudImages.length > 0"
+                  size="tiny"
+                  quaternary
+                  type="error"
+                  @click="handleClearAllCloudImages"
+                >
+                  清空云端
+                </NButton>
+                <NPopconfirm @positive-click="handleSyncAllImages">
+                  <template #trigger>
+                    <NButton size="tiny" type="primary" :loading="syncAllLoading">
+                      <template #icon>
+                        <SvgIcon icon="material-symbols:cloud-download" />
+                      </template>
+                      一键全部拉取到本地
+                    </NButton>
+                  </template>
+                  确认将云端存储中的全部图片一次性下载并同步到本地存储吗？
+                </NPopconfirm>
+              </NSpace>
+            </template>
+
+            <NAlert type="info" size="small" class="mb-4">
+              支持按<strong>壁纸图床</strong>和<strong>应用图床</strong>分类筛选。多选批量删除已开启安全防频次限制限流保护，确保稳妥删除。
+            </NAlert>
+
+            <NSpin :show="imagesLoading">
+              <div v-if="filteredCloudImages.length === 0" class="py-12 text-center text-slate-400">
+                <p>该分类下暂无云端图片</p>
+              </div>
+
+              <NGrid v-else cols="2 s:3 m:4" responsive="screen" :x-gap="12" :y-gap="12">
+                <NGridItem v-for="img in filteredCloudImages" :key="img.path">
+                  <div
+                    class="relative border rounded-lg p-2 bg-slate-50 dark:bg-zinc-800/60 hover:shadow-md transition"
+                    :class="{ 'ring-2 ring-blue-500': selectedCloudPaths.includes(img.path) }"
+                  >
+                    <!-- 多选框 -->
+                    <div class="absolute top-2 left-2 z-10 bg-white/80 dark:bg-black/80 rounded p-0.5">
+                      <NCheckbox
+                        :checked="selectedCloudPaths.includes(img.path)"
+                        size="small"
+                        @update:checked="() => toggleSelectCloudImage(img.path)"
+                      />
+                    </div>
+
+                    <!-- 分类标签 -->
+                    <div class="absolute top-2 right-2 z-10">
+                      <NTag size="tiny" :type="img.path.includes('/wallpapers/') ? 'info' : 'success'" :bordered="false">
+                        {{ img.path.includes('/wallpapers/') ? '壁纸' : '图标' }}
+                      </NTag>
+                    </div>
+
+                    <div class="w-full h-28 flex items-center justify-center bg-zinc-200/50 dark:bg-zinc-900 rounded overflow-hidden">
+                      <NImage
+                        :src="img.downloadUrl"
+                        class="w-full h-full object-cover"
+                        preview-disabled
+                      />
+                    </div>
+                    <div class="mt-2 truncate font-mono text-xs text-slate-700 dark:text-zinc-200" :title="img.name">
+                      {{ img.name }}
+                    </div>
+                    <div class="flex items-center justify-between text-xs text-slate-400 mt-2 pt-1 border-t border-gray-100 dark:border-zinc-700">
+                      <span>{{ formatSize(img.size) }}</span>
+                      <div class="flex items-center gap-1">
+                        <NButton text type="primary" size="tiny" @click="handleSyncSingleImage(img)">
+                          下载
+                        </NButton>
+                        <NButton text type="error" size="tiny" @click="handleDeleteSingleCloudImage(img.path)">
+                          删除
+                        </NButton>
+                      </div>
+                    </div>
+                  </div>
+                </NGridItem>
+              </NGrid>
+            </NSpin>
+          </NCard>
+        </NTabPane>
+
+        <!-- 第 2 页: 待审图片 (管理员一键审批中心) -->
+        <NTabPane name="audit">
+          <template #tab>
+            <span>
+              📋 待审图片
+              <NBadge v-if="auditList.length > 0" :value="auditList.length" type="warning" />
+            </span>
+          </template>
+          <NCard title="普通用户同步申请审批中心" size="small" class="mt-2 shadow-sm rounded-lg">
+            <template #header-extra>
+              <NSpace align="center">
+                <NButton size="tiny" secondary @click="fetchAuditList">
+                  刷新
+                </NButton>
+                <NButton size="tiny" secondary @click="handleSelectAllAudit">
+                  {{ selectedAuditIds.length === auditList.length && auditList.length > 0 ? '取消全选' : '全选' }}
+                </NButton>
+                <NButton
+                  v-if="selectedAuditIds.length > 0"
+                  size="tiny"
+                  type="success"
+                  secondary
+                  @click="handleAuditAction(selectedAuditIds, 'approve')"
+                >
+                  批准选中项 ({{ selectedAuditIds.length }})
+                </NButton>
+                <NButton
+                  v-if="selectedAuditIds.length > 0"
+                  size="tiny"
+                  type="error"
+                  secondary
+                  @click="handleAuditAction(selectedAuditIds, 'reject')"
+                >
+                  驳回选中项 ({{ selectedAuditIds.length }})
+                </NButton>
+                <NButton
+                  v-if="auditList.length > 0"
+                  size="tiny"
+                  type="primary"
+                  @click="handleApproveAll"
+                >
+                  一键全部批准并推送到云端
+                </NButton>
+              </NSpace>
+            </template>
+
+            <NAlert type="info" size="small" class="mb-4">
+              普通用户上传的壁纸和图标申请推送到云端公共图库时，需要经过系统管理员审批。批准后系统将自动将图片推送到云端漫游图床。
+            </NAlert>
+
+            <NSpin :show="auditLoading">
+              <div v-if="auditList.length === 0" class="py-12 text-center text-slate-400">
+                暂无待审核的图片申请
+              </div>
+
+              <NGrid v-else cols="2 s:3 m:4" responsive="screen" :x-gap="12" :y-gap="12">
+                <NGridItem v-for="item in auditList" :key="item.id">
+                  <div
+                    class="relative border rounded-lg p-2 bg-slate-50 dark:bg-zinc-800/60 hover:shadow-md transition"
+                    :class="{ 'ring-2 ring-blue-500': selectedAuditIds.includes(item.id) }"
+                  >
+                    <div class="absolute top-2 left-2 z-10 bg-white/80 dark:bg-black/80 rounded p-0.5">
+                      <NCheckbox
+                        :checked="selectedAuditIds.includes(item.id)"
+                        size="small"
+                        @update:checked="() => toggleSelectAudit(item.id)"
+                      />
+                    </div>
+
+                    <div class="w-full h-28 flex items-center justify-center bg-zinc-200/50 dark:bg-zinc-900 rounded overflow-hidden">
+                      <NImage :src="item.src" class="w-full h-full object-cover" />
+                    </div>
+
+                    <div class="mt-2 truncate font-mono text-xs text-slate-700 dark:text-zinc-200" :title="item.fileName">
+                      {{ item.fileName }}
+                    </div>
+
+                    <div class="flex items-center justify-between text-xs text-slate-400 mt-1">
+                      <span>申请人: <strong>{{ item.userName || `UID:${item.userId}` }}</strong></span>
+                      <NTag size="tiny" type="warning" :bordered="false">待审核</NTag>
+                    </div>
+
+                    <div class="flex items-center justify-end gap-2 mt-2 pt-1 border-t border-gray-100 dark:border-zinc-700">
+                      <NButton size="tiny" type="success" secondary @click="handleAuditAction([item.id], 'approve')">
+                        批准
+                      </NButton>
+                      <NButton size="tiny" type="error" secondary @click="handleAuditAction([item.id], 'reject')">
+                        驳回
+                      </NButton>
+                    </div>
+                  </div>
+                </NGridItem>
+              </NGrid>
+            </NSpin>
+          </NCard>
+        </NTabPane>
+
+        <!-- 第 3 页: 存储配置 (移至第 3 页) -->
         <NTabPane name="config" tab="⚙️ 存储配置">
           <NCard title="多端漫游与云端存储接入" size="small" class="mt-2 shadow-sm rounded-lg">
             <template #header-extra>
@@ -568,7 +794,7 @@ onMounted(() => {
             </template>
 
             <NAlert type="info" size="small" class="mb-4">
-              支持免费使用 <strong>GitHub</strong> 作为无限图床与漫游节点，或使用 <strong>Cloudflare R2</strong>（兼容 S3 协议）。开启后，上传的图片将实时双写上云，实现多终端多设备无缝漫游！
+              支持使用 <strong>GitHub 仓库</strong> 作为无限图床与漫游节点，或使用 <strong>Cloudflare R2</strong>（兼容 S3 协议）。开启后，上传的图片将实时双写上云，实现多终端多设备无缝漫游！
             </NAlert>
 
             <NForm label-placement="left" label-width="120" size="small">
@@ -676,205 +902,7 @@ onMounted(() => {
           </NCard>
         </NTabPane>
 
-        <!-- TAB 2: 云端漫游图床 -->
-        <NTabPane name="images" tab="🖼️ 云端漫游图床">
-          <NCard title="云端图库与多端漫游" size="small" class="mt-2 shadow-sm rounded-lg">
-            <template #header-extra>
-              <NSpace align="center">
-                <NButton size="tiny" secondary @click="fetchImages">
-                  <template #icon>
-                    <SvgIcon icon="material-symbols:refresh" />
-                  </template>
-                  刷新
-                </NButton>
-                <NButton size="tiny" secondary @click="handleSelectAllCloudImages">
-                  {{ selectedCloudPaths.length === cloudImages.length && cloudImages.length > 0 ? '取消全选' : '全选' }}
-                </NButton>
-                <NButton
-                  v-if="selectedCloudPaths.length > 0"
-                  size="tiny"
-                  type="error"
-                  secondary
-                  @click="handleDeleteSelectedCloudImages"
-                >
-                  <template #icon>
-                    <SvgIcon icon="material-symbols:delete" />
-                  </template>
-                  批量删除 ({{ selectedCloudPaths.length }})
-                </NButton>
-                <NButton
-                  v-if="cloudImages.length > 0"
-                  size="tiny"
-                  quaternary
-                  type="error"
-                  @click="handleClearAllCloudImages"
-                >
-                  清空云端图床
-                </NButton>
-                <NPopconfirm @positive-click="handleSyncAllImages">
-                  <template #trigger>
-                    <NButton size="tiny" type="primary" :loading="syncAllLoading">
-                      <template #icon>
-                        <SvgIcon icon="material-symbols:cloud-download" />
-                      </template>
-                      一键全部拉取到本地
-                    </NButton>
-                  </template>
-                  确认将云端存储中的全部图片一次性下载并同步到当前机器的本地存储中吗？
-                </NPopconfirm>
-              </NSpace>
-            </template>
-
-            <NAlert type="info" size="small" class="mb-4">
-              在此可查看和管理已存储在云端的公共图片。支持多选批量删除、清空图床或一键全部拉取回本地。
-            </NAlert>
-
-            <NSpin :show="imagesLoading">
-              <div v-if="cloudImages.length === 0" class="py-12 text-center text-slate-400">
-                <p>云端暂无图片，启用双写或在图库管理中点击推送即可同步至此</p>
-              </div>
-
-              <NGrid v-else cols="2 s:3 m:4" responsive="screen" :x-gap="12" :y-gap="12">
-                <NGridItem v-for="img in cloudImages" :key="img.path">
-                  <div
-                    class="relative border rounded-lg p-2 bg-slate-50 dark:bg-zinc-800/60 hover:shadow-md transition"
-                    :class="{ 'ring-2 ring-blue-500': selectedCloudPaths.includes(img.path) }"
-                  >
-                    <!-- 多选框 -->
-                    <div class="absolute top-2 left-2 z-10 bg-white/80 dark:bg-black/80 rounded p-0.5">
-                      <NCheckbox
-                        :checked="selectedCloudPaths.includes(img.path)"
-                        size="small"
-                        @update:checked="() => toggleSelectCloudImage(img.path)"
-                      />
-                    </div>
-
-                    <div class="w-full h-28 flex items-center justify-center bg-zinc-200/50 dark:bg-zinc-900 rounded overflow-hidden">
-                      <NImage
-                        :src="img.downloadUrl"
-                        class="w-full h-full object-cover"
-                        preview-disabled
-                      />
-                    </div>
-                    <div class="mt-2 truncate font-mono text-xs text-slate-700 dark:text-zinc-200" :title="img.name">
-                      {{ img.name }}
-                    </div>
-                    <div class="flex items-center justify-between text-xs text-slate-400 mt-2 pt-1 border-t border-gray-100 dark:border-zinc-700">
-                      <span>{{ formatSize(img.size) }}</span>
-                      <div class="flex items-center gap-1">
-                        <NButton text type="primary" size="tiny" @click="handleSyncSingleImage(img)">
-                          下载
-                        </NButton>
-                        <NButton text type="error" size="tiny" @click="handleDeleteSingleCloudImage(img.path)">
-                          删除
-                        </NButton>
-                      </div>
-                    </div>
-                  </div>
-                </NGridItem>
-              </NGrid>
-            </NSpin>
-          </NCard>
-        </NTabPane>
-
-        <!-- TAB 3: 待审图片 (管理员一键审批中心) -->
-        <NTabPane name="audit">
-          <template #tab>
-            <span>
-              📋 待审图片
-              <NBadge v-if="auditList.length > 0" :value="auditList.length" type="warning" />
-            </span>
-          </template>
-          <NCard title="普通用户同步申请审批中心" size="small" class="mt-2 shadow-sm rounded-lg">
-            <template #header-extra>
-              <NSpace align="center">
-                <NButton size="tiny" secondary @click="fetchAuditList">
-                  刷新
-                </NButton>
-                <NButton size="tiny" secondary @click="handleSelectAllAudit">
-                  {{ selectedAuditIds.length === auditList.length && auditList.length > 0 ? '取消全选' : '全选' }}
-                </NButton>
-                <NButton
-                  v-if="selectedAuditIds.length > 0"
-                  size="tiny"
-                  type="success"
-                  secondary
-                  @click="handleAuditAction(selectedAuditIds, 'approve')"
-                >
-                  批准选中项 ({{ selectedAuditIds.length }})
-                </NButton>
-                <NButton
-                  v-if="selectedAuditIds.length > 0"
-                  size="tiny"
-                  type="error"
-                  secondary
-                  @click="handleAuditAction(selectedAuditIds, 'reject')"
-                >
-                  驳回选中项 ({{ selectedAuditIds.length }})
-                </NButton>
-                <NButton
-                  v-if="auditList.length > 0"
-                  size="tiny"
-                  type="primary"
-                  @click="handleApproveAll"
-                >
-                  一键全部批准并推送到云端
-                </NButton>
-              </NSpace>
-            </template>
-
-            <NAlert type="info" size="small" class="mb-4">
-              普通用户上传的壁纸和图标申请推送到云端公共图库时，需要经过系统管理员审批。批准后系统将自动将图片推送到云端漫游图床。
-            </NAlert>
-
-            <NSpin :show="auditLoading">
-              <div v-if="auditList.length === 0" class="py-12 text-center text-slate-400">
-                暂无待审核的图片申请
-              </div>
-
-              <NGrid v-else cols="2 s:3 m:4" responsive="screen" :x-gap="12" :y-gap="12">
-                <NGridItem v-for="item in auditList" :key="item.id">
-                  <div
-                    class="relative border rounded-lg p-2 bg-slate-50 dark:bg-zinc-800/60 hover:shadow-md transition"
-                    :class="{ 'ring-2 ring-blue-500': selectedAuditIds.includes(item.id) }"
-                  >
-                    <div class="absolute top-2 left-2 z-10 bg-white/80 dark:bg-black/80 rounded p-0.5">
-                      <NCheckbox
-                        :checked="selectedAuditIds.includes(item.id)"
-                        size="small"
-                        @update:checked="() => toggleSelectAudit(item.id)"
-                      />
-                    </div>
-
-                    <div class="w-full h-28 flex items-center justify-center bg-zinc-200/50 dark:bg-zinc-900 rounded overflow-hidden">
-                      <NImage :src="item.src" class="w-full h-full object-cover" />
-                    </div>
-
-                    <div class="mt-2 truncate font-mono text-xs text-slate-700 dark:text-zinc-200" :title="item.fileName">
-                      {{ item.fileName }}
-                    </div>
-
-                    <div class="flex items-center justify-between text-xs text-slate-400 mt-1">
-                      <span>申请人: <strong>{{ item.userName || `UID:${item.userId}` }}</strong></span>
-                      <NTag size="tiny" type="warning" :bordered="false">待审核</NTag>
-                    </div>
-
-                    <div class="flex items-center justify-end gap-2 mt-2 pt-1 border-t border-gray-100 dark:border-zinc-700">
-                      <NButton size="tiny" type="success" secondary @click="handleAuditAction([item.id], 'approve')">
-                        批准
-                      </NButton>
-                      <NButton size="tiny" type="error" secondary @click="handleAuditAction([item.id], 'reject')">
-                        驳回
-                      </NButton>
-                    </div>
-                  </div>
-                </NGridItem>
-              </NGrid>
-            </NSpin>
-          </NCard>
-        </NTabPane>
-
-        <!-- TAB 4: 云端加密备份与恢复 -->
+        <!-- 第 4 页: 云端加密备份与恢复 -->
         <NTabPane name="backups" tab="🔒 云端加密备份中心">
           <NCard title="安全加密全站备份" size="small" class="mt-2 shadow-sm rounded-lg">
             <NAlert type="warning" size="small" class="mb-4">

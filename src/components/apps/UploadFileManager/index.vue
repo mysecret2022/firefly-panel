@@ -11,8 +11,11 @@ import {
   NGrid,
   NGridItem,
   NImage,
-  NImageGroup,
+  NInput,
+  NModal,
   NPopconfirm,
+  NRadio,
+  NRadioGroup,
   NSelect,
   NSpin,
   NTabPane,
@@ -23,19 +26,20 @@ import {
   useMessage,
 } from 'naive-ui'
 import type { UploadFileInfo } from 'naive-ui'
-import { applySyncToCloud, deletes, getList, uploadToCloud } from '@/api/system/file'
+import {
+  applySyncToCloud,
+  changeFileCategory,
+  deletes,
+  getList,
+  renameFile,
+  uploadToCloud,
+} from '@/api/system/file'
 import type { FileItem } from '@/api/system/file'
 import { set as savePanelConfig } from '@/api/panel/userConfig'
 import { RoundCardModal, SvgIcon } from '@/components/common'
-import { copyToClipboard, timeFormat } from '@/utils/cmn'
+import cloudIcon from '@/assets/cloud.png'
 import { t } from '@/locales'
 import { useAuthStore, usePanelState } from '@/store'
-
-interface InfoModalState {
-  title: string
-  show: boolean
-  fileInfo: FileItem | null
-}
 
 const authStore = useAuthStore()
 const panelStore = usePanelState()
@@ -48,11 +52,15 @@ const selectedIds = ref<number[]>([])
 const currentTab = ref<'all' | 'wallpapers' | 'icons'>('all')
 const uploadCategory = ref<number>(0) // 0: 壁纸, 1: 图标
 
-const infoModalState = ref<InfoModalState>({
-  show: false,
-  title: '',
-  fileInfo: null,
-})
+// 重命名弹窗
+const renameModalVisible = ref(false)
+const renameTargetId = ref<number | null>(null)
+const renameNewName = ref('')
+
+// 移动分类弹窗
+const moveModalVisible = ref(false)
+const moveTargetIds = ref<number[]>([])
+const targetCategory = ref<number>(1)
 
 // 根据当前 Tab 过滤展示的列表
 const filteredList = computed(() => {
@@ -89,35 +97,21 @@ async function fetchFileList() {
 // 选中 / 反选
 function toggleSelect(id: number) {
   const idx = selectedIds.value.indexOf(id)
-  if (idx > -1) {
+  if (idx > -1)
     selectedIds.value.splice(idx, 1)
-  }
-  else {
+  else
     selectedIds.value.push(id)
-  }
 }
 
 function handleSelectAll() {
   if (isAllSelected.value) {
-    // 取消全选
     const currentTabIds = new Set(filteredList.value.map(i => i.id))
     selectedIds.value = selectedIds.value.filter(id => !currentTabIds.has(id))
   }
   else {
-    // 全选当前列表
     const newSet = new Set([...selectedIds.value, ...filteredList.value.map(i => i.id)])
     selectedIds.value = Array.from(newSet)
   }
-}
-
-// 复制图片链接
-async function copyImageUrl(text: string) {
-  const fullUrl = text.startsWith('http') ? text : `${window.location.origin}/${text.replace(/^\//, '')}`
-  const res = await copyToClipboard(fullUrl)
-  if (res)
-    ms.success(t('apps.uploadsFileManager.copySuccess'))
-  else
-    ms.error(t('apps.uploadsFileManager.copyFailed'))
 }
 
 // 设为壁纸
@@ -125,6 +119,71 @@ function handleSetWallpaper(imgSrc: string) {
   panelStore.panelConfig.backgroundImageSrc = imgSrc
   savePanelConfig({ panel: panelStore.panelConfig })
   ms.success('已应用为桌面背景壁纸！')
+}
+
+// 打开重命名弹窗
+function openRenameModal(item: FileItem) {
+  renameTargetId.value = item.id
+  renameNewName.value = item.fileName
+  renameModalVisible.value = true
+}
+
+async function handleConfirmRename() {
+  if (!renameTargetId.value || !renameNewName.value.trim()) {
+    ms.warning('文件名不能为空')
+    return
+  }
+  loading.value = true
+  try {
+    const res: any = await renameFile(renameTargetId.value, renameNewName.value.trim())
+    if (res.code === 0) {
+      ms.success('重命名成功')
+      renameModalVisible.value = false
+      fetchFileList()
+    }
+    else {
+      ms.error(`重命名失败: ${res.msg}`)
+    }
+  }
+  catch (e) {
+    ms.error('操作失败')
+  }
+  finally {
+    loading.value = false
+  }
+}
+
+// 打开移动分类弹窗
+function openMoveModal(ids: number[]) {
+  if (ids.length === 0) {
+    ms.warning('请先勾选需要移动的图片')
+    return
+  }
+  moveTargetIds.value = ids
+  targetCategory.value = currentTab.value === 'wallpapers' ? 1 : 0
+  moveModalVisible.value = true
+}
+
+async function handleConfirmMove() {
+  loading.value = true
+  try {
+    const res: any = await changeFileCategory(moveTargetIds.value, targetCategory.value)
+    if (res.code === 0) {
+      ms.success(`已成功移动 ${moveTargetIds.value.length} 张图片分类`)
+      moveModalVisible.value = false
+      selectedIds.value = []
+      fetchFileList()
+    }
+    else {
+      ms.error(`移动失败: ${res.msg}`)
+    }
+  }
+  catch (e) {
+    ms.error('操作失败')
+  }
+  finally {
+    loading.value = false
+  }
 }
 
 // 单张删除
@@ -210,7 +269,6 @@ async function handleSyncAction(ids: number[]) {
   loading.value = true
   try {
     if (authStore.userInfo?.role === 1) {
-      // 管理员直接推送到云端图床
       const res: any = await uploadToCloud(ids)
       if (res.code === 0) {
         ms.success(res.data?.message || '已成功推送到云端图床！')
@@ -221,7 +279,6 @@ async function handleSyncAction(ids: number[]) {
       }
     }
     else {
-      // 普通用户提交申请
       const res: any = await applySyncToCloud(ids)
       if (res.code === 0) {
         ms.success(res.data?.message || '已提交同步申请，等待管理员审核！')
@@ -321,6 +378,19 @@ onMounted(() => {
       </div>
 
       <div class="flex items-center gap-2">
+        <!-- 批量移动分类 -->
+        <NButton
+          v-if="selectedIds.length > 0"
+          size="tiny"
+          secondary
+          @click="openMoveModal(selectedIds)"
+        >
+          <template #icon>
+            <SvgIcon icon="material-symbols:drive-file-move-outline" />
+          </template>
+          移动分类 ({{ selectedIds.length }})
+        </NButton>
+
         <NButton
           v-if="selectedIds.length > 0"
           size="tiny"
@@ -330,7 +400,7 @@ onMounted(() => {
           @click="handleSyncAction(selectedIds)"
         >
           <template #icon>
-            <SvgIcon icon="cloud" />
+            <img :src="cloudIcon" style="width: 14px; height: 14px; object-fit: contain;" />
           </template>
           {{ authStore.userInfo?.role === 1 ? `批量推送到云端 (${selectedIds.length})` : `申请同步到图床 (${selectedIds.length})` }}
         </NButton>
@@ -344,7 +414,7 @@ onMounted(() => {
           @click="handleDeleteSelected"
         >
           <template #icon>
-            <SvgIcon icon="material-symbols-delete" />
+            <SvgIcon icon="material-symbols:delete" />
           </template>
           批量删除 ({{ selectedIds.length }})
         </NButton>
@@ -414,18 +484,31 @@ onMounted(() => {
 
               <!-- 卡片底部文件名与操作栏 -->
               <div class="pt-1">
-                <div class="text-xs truncate font-medium text-gray-700 dark:text-gray-300" :title="item.fileName">
+                <div
+                  class="text-xs truncate font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:text-blue-500 transition"
+                  :title="`${item.fileName} (点击重命名)`"
+                  @click="openRenameModal(item)"
+                >
                   {{ item.fileName }}
                 </div>
 
                 <div class="flex items-center justify-between mt-2 pt-1 border-t border-gray-100 dark:border-zinc-800">
                   <NButtonGroup size="tiny">
-                    <NButton quaternary title="复制链接" @click="copyImageUrl(item.src)">
+                    <!-- 重命名 -->
+                    <NButton quaternary title="重命名" @click="openRenameModal(item)">
                       <template #icon>
-                        <SvgIcon icon="ion-copy" />
+                        <SvgIcon icon="basil:edit-solid" />
                       </template>
                     </NButton>
 
+                    <!-- 移动分类 -->
+                    <NButton quaternary :title="item.fileType === 0 ? '移动到应用图标' : '移动到壁纸图库'" @click="openMoveModal([item.id])">
+                      <template #icon>
+                        <SvgIcon icon="material-symbols:drive-file-move-outline" />
+                      </template>
+                    </NButton>
+
+                    <!-- 设为壁纸 (壁纸分类专属) -->
                     <NButton
                       v-if="item.fileType === 0"
                       quaternary
@@ -437,16 +520,18 @@ onMounted(() => {
                       </template>
                     </NButton>
 
+                    <!-- 推送到云端图床 / 申请同步 -->
                     <NButton
                       quaternary
                       :title="authStore.userInfo?.role === 1 ? '推送到云端图床' : '申请同步到云端'"
                       @click="handleSyncAction([item.id])"
                     >
                       <template #icon>
-                        <SvgIcon icon="cloud" />
+                        <img :src="cloudIcon" style="width: 14px; height: 14px; object-fit: contain;" />
                       </template>
                     </NButton>
 
+                    <!-- 删除 -->
                     <NButton
                       quaternary
                       type="error"
@@ -454,7 +539,7 @@ onMounted(() => {
                       @click="handleDeleteSingle(item.id)"
                     >
                       <template #icon>
-                        <SvgIcon icon="material-symbols-delete" />
+                        <SvgIcon icon="material-symbols:delete" />
                       </template>
                     </NButton>
                   </NButtonGroup>
@@ -465,6 +550,69 @@ onMounted(() => {
         </NGrid>
       </NSpin>
     </div>
+
+    <!-- 重命名模态框 -->
+    <NModal
+      v-model:show="renameModalVisible"
+      preset="card"
+      title="修改文件名"
+      style="max-width: 400px; border-radius: 12px;"
+    >
+      <div class="space-y-3">
+        <div class="text-xs text-gray-500">
+          请输入新的文件名：
+        </div>
+        <NInput v-model:value="renameNewName" placeholder="例如: my-icon.png" @keyup.enter="handleConfirmRename" />
+      </div>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <NButton secondary size="small" @click="renameModalVisible = false">
+            取消
+          </NButton>
+          <NButton type="primary" size="small" :loading="loading" @click="handleConfirmRename">
+            保存
+          </NButton>
+        </div>
+      </template>
+    </NModal>
+
+    <!-- 移动分类模态框 -->
+    <NModal
+      v-model:show="moveModalVisible"
+      preset="card"
+      title="移动图片到其他分类"
+      style="max-width: 400px; border-radius: 12px;"
+    >
+      <div class="space-y-3">
+        <div class="text-xs text-gray-500">
+          请选择目标分类：
+        </div>
+        <NRadioGroup v-model:value="targetCategory">
+          <div class="space-y-2">
+            <div>
+              <NRadio :value="0">
+                🌄 壁纸图库 (桌面大图壁纸)
+              </NRadio>
+            </div>
+            <div>
+              <NRadio :value="1">
+                🎨 应用图标 (导航卡片小图标)
+              </NRadio>
+            </div>
+          </div>
+        </NRadioGroup>
+      </div>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <NButton secondary size="small" @click="moveModalVisible = false">
+            取消
+          </NButton>
+          <NButton type="primary" size="small" :loading="loading" @click="handleConfirmMove">
+            确认移动
+          </NButton>
+        </div>
+      </template>
+    </NModal>
   </div>
 </template>
 

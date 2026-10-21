@@ -389,15 +389,25 @@ func (a *CloudStorageApi) ListCloudImages(c *gin.Context) {
 		return
 	}
 
-	items, err := client.ListFiles("images")
-	if err != nil {
-		apiReturn.Error(c, "获取云端图片列表失败: "+err.Error())
-		return
+	dirs := []string{"images", "images/wallpapers", "images/icons"}
+	var allItems []cloudClient.FileItem
+	seen := make(map[string]bool)
+
+	for _, d := range dirs {
+		subItems, err := client.ListFiles(d)
+		if err == nil {
+			for _, it := range subItems {
+				if !it.IsDirectory && !seen[it.Path] {
+					seen[it.Path] = true
+					allItems = append(allItems, it)
+				}
+			}
+		}
 	}
 
 	var images []cloudClient.FileItem
 	imageExts := []string{".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".ico"}
-	for _, it := range items {
+	for _, it := range allItems {
 		ext := strings.ToLower(path.Ext(it.Name))
 		for _, e := range imageExts {
 			if ext == e {
@@ -538,21 +548,32 @@ func (a *CloudStorageApi) DeleteCloudImages(c *gin.Context) {
 
 	successCount := 0
 	failCount := 0
-	for _, p := range req.Paths {
+	var lastErr string
+	for i, p := range req.Paths {
 		if strings.TrimSpace(p) == "" {
 			continue
 		}
+		// 保守速度删除，避免触发 GitHub Secondary Rate Limit 拦截
+		if i > 0 {
+			time.Sleep(350 * time.Millisecond)
+		}
 		if err := client.DeleteFile(p); err != nil {
 			failCount++
+			lastErr = err.Error()
 		} else {
 			successCount++
 		}
 	}
 
+	msg := fmt.Sprintf("批量删除完成: 成功删除 %d 张，失败 %d 张", successCount, failCount)
+	if failCount > 0 && lastErr != "" {
+		msg += fmt.Sprintf(" (原因: %s)", lastErr)
+	}
+
 	apiReturn.SuccessData(c, gin.H{
 		"successCount": successCount,
 		"failCount":    failCount,
-		"message":      fmt.Sprintf("批量删除完成: 成功删除 %d 张，失败 %d 张", successCount, failCount),
+		"message":      msg,
 	})
 }
 
@@ -582,9 +603,13 @@ func (a *CloudStorageApi) ClearAllCloudImages(c *gin.Context) {
 	}
 
 	successCount := 0
-	for _, it := range items {
+	for i, it := range items {
 		if it.IsDirectory {
 			continue
+		}
+		// 保守速度限流
+		if i > 0 {
+			time.Sleep(350 * time.Millisecond)
 		}
 		if err := client.DeleteFile(it.Path); err == nil {
 			successCount++

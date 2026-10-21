@@ -59,3 +59,17 @@ export function getPublicIcons<T>() {
     url: '/file/publicIcons',
   })
 }
+
+export function changeFileCategory<T>(ids: number[], fileType: number) {
+  return post<T>({
+    url: '/file/changeCategory',
+    data: { ids, fileType },
+  })
+}
+
+export function renameFile<T>(id: number, fileName: string) {
+  return post<T>({
+    url: '/file/rename',
+    data: { id, fileName },
+  })
+}

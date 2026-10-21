@@ -23,6 +23,8 @@ func InitFileRouter(router *gin.RouterGroup) {
 		private.GET("/file/auditList", FileApi.AuditList)
 		private.POST("/file/auditAction", FileApi.AuditAction)
 		private.GET("/file/publicIcons", FileApi.GetPublicIcons)
+		private.POST("/file/changeCategory", FileApi.ChangeCategory)
+		private.POST("/file/rename", FileApi.RenameFile)
 
 	}
 

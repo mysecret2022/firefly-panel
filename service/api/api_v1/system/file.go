@@ -40,8 +40,8 @@ func getCloudClient() (cloudClient.CloudStorageClient, error) {
 	return cloudClient.CreateCloudClient(cfg)
 }
 
-// 将本地文件推送到云端图床
-func uploadLocalFileToCloud(client cloudClient.CloudStorageClient, localPath, fileName, ext string) error {
+// 将本地文件推送到云端图床 (支持分别存放到 wallpapers 与 icons 目录)
+func uploadLocalFileToCloud(client cloudClient.CloudStorageClient, localPath, fileName, ext string, fileType int) error {
 	data, err := os.ReadFile(localPath)
 	if err != nil {
 		return err
@@ -59,7 +59,13 @@ func uploadLocalFileToCloud(client cloudClient.CloudStorageClient, localPath, fi
 	case ".ico":
 		mime = "image/x-icon"
 	}
-	_, err = client.UploadFile("images/"+fileName, data, mime)
+
+	subDir := "images/wallpapers/"
+	if fileType == 1 {
+		subDir = "images/icons/"
+	}
+
+	_, err = client.UploadFile(subDir+fileName, data, mime)
 	return err
 }
 
@@ -105,13 +111,13 @@ func (a *FileApi) UploadImg(c *gin.Context) {
 	c.SaveUploadedFile(f, filepath)
 
 	// 异步双写到云端图床 (若配置了开启双写)
-	go func(srcFile string, imgName string, ext string) {
+	go func(srcFile string, imgName string, ext string, fType int) {
 		client, err := getCloudClient()
 		if err != nil {
 			return
 		}
-		_ = uploadLocalFileToCloud(client, srcFile, imgName, ext)
-	}(filepath, fileName+fileExt, fileExt)
+		_ = uploadLocalFileToCloud(client, srcFile, imgName, ext, fType)
+	}(filepath, fileName+fileExt, fileExt, fileType)
 
 	// 向数据库添加记录
 	mFile := models.File{}
@@ -318,7 +324,7 @@ func (a *FileApi) UploadToCloud(c *gin.Context) {
 	successCount := 0
 	for _, f := range files {
 		cleanName := path.Base(f.Src)
-		if err := uploadLocalFileToCloud(client, f.Src, cleanName, f.Ext); err == nil {
+		if err := uploadLocalFileToCloud(client, f.Src, cleanName, f.Ext, f.FileType); err == nil {
 			global.Db.Model(&models.File{}).Where("id = ?", f.ID).Update("sync_status", 2)
 			successCount++
 		}
@@ -410,7 +416,7 @@ func (a *FileApi) AuditAction(c *gin.Context) {
 	successCount := 0
 	for _, f := range files {
 		cleanName := path.Base(f.Src)
-		if err := uploadLocalFileToCloud(client, f.Src, cleanName, f.Ext); err == nil {
+		if err := uploadLocalFileToCloud(client, f.Src, cleanName, f.Ext, f.FileType); err == nil {
 			global.Db.Model(&models.File{}).Where("id = ?", f.ID).Update("sync_status", 2)
 			successCount++
 		}
@@ -447,3 +453,58 @@ func (a *FileApi) GetPublicIcons(c *gin.Context) {
 
 	apiReturn.SuccessListData(c, data, int64(len(data)))
 }
+
+// ChangeCategory 移动图片分类 (0: 壁纸图库, 1: 应用图标)
+func (a *FileApi) ChangeCategory(c *gin.Context) {
+	userInfo, _ := base.GetCurrentUserInfo(c)
+	var req struct {
+		Ids      []uint `json:"ids"`
+		FileType int    `json:"fileType"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.Ids) == 0 {
+		apiReturn.ErrorParamFomat(c, "未指定修改的图片")
+		return
+	}
+
+	query := global.Db.Model(&models.File{}).Where("id IN ?", req.Ids)
+	if userInfo.Role != 1 {
+		query = query.Where("user_id = ?", userInfo.ID)
+	}
+
+	if err := query.Update("file_type", req.FileType).Error; err != nil {
+		apiReturn.Error(c, "移动分类失败: "+err.Error())
+		return
+	}
+
+	apiReturn.SuccessData(c, gin.H{
+		"message": "已成功移动图片分类",
+	})
+}
+
+// RenameFile 重命名图片文件
+func (a *FileApi) RenameFile(c *gin.Context) {
+	userInfo, _ := base.GetCurrentUserInfo(c)
+	var req struct {
+		Id       uint   `json:"id"`
+		FileName string `json:"fileName"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Id == 0 || strings.TrimSpace(req.FileName) == "" {
+		apiReturn.ErrorParamFomat(c, "文件名不能为空")
+		return
+	}
+
+	query := global.Db.Model(&models.File{}).Where("id = ?", req.Id)
+	if userInfo.Role != 1 {
+		query = query.Where("user_id = ?", userInfo.ID)
+	}
+
+	if err := query.Update("file_name", strings.TrimSpace(req.FileName)).Error; err != nil {
+		apiReturn.Error(c, "重命名失败: "+err.Error())
+		return
+	}
+
+	apiReturn.SuccessData(c, gin.H{
+		"message": "重命名成功",
+	})
+}
+

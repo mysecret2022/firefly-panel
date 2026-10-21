@@ -282,7 +282,16 @@ func (g *GitHubClient) ListFiles(subDir string) ([]FileItem, error) {
 
 // DeleteFile 从 GitHub 仓库中删除指定文件
 func (g *GitHubClient) DeleteFile(relativePath string) error {
-	fullPath := strings.TrimPrefix(path.Join(g.Config.BasePath, relativePath), "/")
+	cleanRel := strings.TrimPrefix(relativePath, "/")
+	cleanBase := strings.Trim(g.Config.BasePath, "/")
+
+	fullPath := cleanRel
+	if cleanBase != "" {
+		if !strings.HasPrefix(cleanRel, cleanBase+"/") && cleanRel != cleanBase {
+			fullPath = path.Join(cleanBase, cleanRel)
+		}
+	}
+
 	getApiUrl := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/%s?ref=%s", g.Config.Owner, g.Config.Repo, fullPath, g.Config.Branch)
 
 	// 1. 先通过 GET 获取文件的 sha
@@ -303,7 +312,8 @@ func (g *GitHubClient) DeleteFile(relativePath string) error {
 		return nil
 	}
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("查询待删除文件失败 (%d)", resp.StatusCode)
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("查询待删除文件失败 (%d): %s", resp.StatusCode, string(b))
 	}
 
 	var meta struct {
@@ -311,6 +321,10 @@ func (g *GitHubClient) DeleteFile(relativePath string) error {
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&meta); err != nil {
 		return err
+	}
+
+	if meta.Sha == "" {
+		return fmt.Errorf("未获取到待删除文件的 sha 凭证")
 	}
 
 	// 2. 调用 DELETE 接口删除文件

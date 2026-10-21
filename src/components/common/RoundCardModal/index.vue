@@ -36,20 +36,34 @@ const showModal = computed({
   },
 })
 
+// 拖拽移动状态
 let isDragging = false
-let dragStartX = 0
-let dragStartY = 0
-let currentTranslateX = 0
-let currentTranslateY = 0
+let dragMouseStartX = 0
+let dragMouseStartY = 0
+let cardStartLeft = 0
+let cardStartTop = 0
 
+// 拉伸缩放状态 (左上角完全固定，右下角拖动变形)
 let isResizing = false
-let resizeStartX = 0
-let resizeStartY = 0
-let initialWidth = 0
-let initialHeight = 0
+let fixedLeft = 0
+let fixedTop = 0
 
 function getCardEl(): HTMLElement | null {
   return document.querySelector(`.${modalUniqueClass}`) as HTMLElement | null
+}
+
+// 确保卡片转换为 fixed 定位，便于绝对坐标拖拽与定点缩放
+function ensureFixedPosition(card: HTMLElement) {
+  if (card.style.position !== 'fixed') {
+    const rect = card.getBoundingClientRect()
+    card.style.position = 'fixed'
+    card.style.left = `${rect.left}px`
+    card.style.top = `${rect.top}px`
+    card.style.margin = '0'
+    card.style.transform = 'none'
+    card.style.width = `${rect.width}px`
+    card.style.height = `${rect.height}px`
+  }
 }
 
 function handleHeaderMouseDown(e: MouseEvent) {
@@ -63,9 +77,13 @@ function handleHeaderMouseDown(e: MouseEvent) {
   if (!card)
     return
 
+  ensureFixedPosition(card)
+
   isDragging = true
-  dragStartX = e.clientX - currentTranslateX
-  dragStartY = e.clientY - currentTranslateY
+  dragMouseStartX = e.clientX
+  dragMouseStartY = e.clientY
+  cardStartLeft = parseFloat(card.style.left) || card.getBoundingClientRect().left
+  cardStartTop = parseFloat(card.style.top) || card.getBoundingClientRect().top
   card.style.transition = 'none'
 
   document.addEventListener('mousemove', onDragMouseMove)
@@ -76,11 +94,18 @@ function handleHeaderMouseDown(e: MouseEvent) {
 function onDragMouseMove(e: MouseEvent) {
   if (!isDragging)
     return
-  currentTranslateX = e.clientX - dragStartX
-  currentTranslateY = e.clientY - dragStartY
   const card = getCardEl()
-  if (card)
-    card.style.transform = `translate(${currentTranslateX}px, ${currentTranslateY}px)`
+  if (!card)
+    return
+
+  const deltaX = e.clientX - dragMouseStartX
+  const deltaY = e.clientY - dragMouseStartY
+
+  const newLeft = Math.max(10, Math.min(window.innerWidth - 60, cardStartLeft + deltaX))
+  const newTop = Math.max(10, Math.min(window.innerHeight - 60, cardStartTop + deltaY))
+
+  card.style.left = `${newLeft}px`
+  card.style.top = `${newTop}px`
 }
 
 function onDragMouseUp() {
@@ -89,6 +114,7 @@ function onDragMouseUp() {
   document.removeEventListener('mouseup', onDragMouseUp)
 }
 
+// 右下角拖动变形：左边和上边锁定不动，向右和向下拖动改变宽高
 function handleResizeMouseDown(e: MouseEvent) {
   if (props.resizable === false)
     return
@@ -96,11 +122,12 @@ function handleResizeMouseDown(e: MouseEvent) {
   if (!card)
     return
 
+  ensureFixedPosition(card)
+
   isResizing = true
-  resizeStartX = e.clientX
-  resizeStartY = e.clientY
-  initialWidth = card.offsetWidth
-  initialHeight = card.offsetHeight
+  const rect = card.getBoundingClientRect()
+  fixedLeft = rect.left
+  fixedTop = rect.top
   card.style.transition = 'none'
 
   document.addEventListener('mousemove', onResizeMouseMove)
@@ -116,16 +143,14 @@ function onResizeMouseMove(e: MouseEvent) {
   if (!card)
     return
 
-  const deltaX = e.clientX - resizeStartX
-  const deltaY = e.clientY - resizeStartY
-
-  const newWidth = Math.max(320, Math.min(window.innerWidth - 30, initialWidth + deltaX))
-  const newHeight = Math.max(200, Math.min(window.innerHeight - 30, initialHeight + deltaY))
+  // 左上角严格固定在 (fixedLeft, fixedTop)，只根据鼠标当前坐标计算新的 width 和 height
+  const newWidth = Math.max(320, Math.min(window.innerWidth - fixedLeft - 10, e.clientX - fixedLeft))
+  const newHeight = Math.max(200, Math.min(window.innerHeight - fixedTop - 10, e.clientY - fixedTop))
 
   card.style.width = `${newWidth}px`
-  card.style.maxWidth = '98vw'
   card.style.height = `${newHeight}px`
-  card.style.maxHeight = '95vh'
+  card.style.maxWidth = '98vw'
+  card.style.maxHeight = '98vh'
 }
 
 function onResizeMouseUp() {
@@ -134,14 +159,19 @@ function onResizeMouseUp() {
   document.removeEventListener('mouseup', onResizeMouseUp)
 }
 
+// 双击标题栏一键复位
 function resetPositionAndSize() {
   const card = getCardEl()
   if (card) {
-    currentTranslateX = 0
-    currentTranslateY = 0
+    card.style.position = ''
+    card.style.left = ''
+    card.style.top = ''
     card.style.transform = ''
+    card.style.margin = ''
     card.style.width = ''
     card.style.height = ''
+    card.style.maxWidth = ''
+    card.style.maxHeight = ''
   }
 }
 
@@ -161,7 +191,7 @@ watch(
             header.dataset.dragAttached = 'true'
             header.style.cursor = 'move'
             header.style.userSelect = 'none'
-            header.title = '按住拖动窗口，双击复位'
+            header.title = '按住拖动窗口，双击居中复位'
             header.addEventListener('mousedown', handleHeaderMouseDown)
             header.addEventListener('dblclick', resetPositionAndSize)
           }
@@ -170,7 +200,7 @@ watch(
           if (!card.querySelector('.custom-modal-resizer')) {
             const resizer = document.createElement('div')
             resizer.className = 'custom-modal-resizer'
-            resizer.title = '拖拽调整窗口大小'
+            resizer.title = '向右下拖拽调整窗口大小 (左上固定)'
             resizer.innerHTML = `
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M11 1L1 11M11 6L6 11M11 11L11 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
@@ -228,7 +258,6 @@ onBeforeUnmount(() => {
 
 <style>
 .draggable-resizable-modal {
-  position: relative !important;
   display: flex !important;
   flex-direction: column !important;
   box-sizing: border-box;
@@ -241,8 +270,8 @@ onBeforeUnmount(() => {
 
 .custom-modal-resizer {
   position: absolute;
-  right: 5px;
-  bottom: 5px;
+  right: 4px;
+  bottom: 4px;
   width: 18px;
   height: 18px;
   cursor: nwse-resize;
