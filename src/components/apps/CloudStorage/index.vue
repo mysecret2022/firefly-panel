@@ -116,6 +116,12 @@ function formatDate(d: string | Date) {
   return date.toLocaleString('zh-CN', { hour12: false })
 }
 
+// 计算云端总容量
+const totalCloudSize = computed(() => {
+  const sum = cloudImages.value.reduce((acc, cur) => acc + (cur.size || 0), 0)
+  return formatSize(sum)
+})
+
 // 根据分类筛选云端图片
 const filteredCloudImages = computed(() => {
   if (cloudCategory.value === 'wallpapers') {
@@ -572,29 +578,36 @@ onMounted(() => {
           <NCard size="small" class="mt-2 shadow-sm rounded-lg">
             <template #header>
               <div class="flex items-center gap-3">
-                <span class="font-medium text-sm">云端图库与多端漫游</span>
                 <NTabs v-model:value="cloudCategory" type="segment" size="small" class="w-auto">
                   <NTabPane name="all" tab="全部" />
                   <NTabPane name="wallpapers" tab="🌄 壁纸图床" />
                   <NTabPane name="icons" tab="🎨 应用图床" />
                 </NTabs>
+                <div class="hidden sm:flex items-center text-xs text-gray-400 gap-2 pl-2 border-l border-gray-200 dark:border-zinc-700">
+                  <span>已漫游: <strong class="text-blue-500 font-semibold">{{ cloudImages.length }}</strong> 张</span>
+                  <span>容量: <strong class="text-emerald-500 font-semibold">{{ totalCloudSize }}</strong></span>
+                  <span class="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    云端畅通
+                  </span>
+                </div>
               </div>
             </template>
 
             <template #header-extra>
-              <NSpace align="center">
-                <NButton size="tiny" secondary @click="fetchImages">
+              <div class="flex items-center gap-2">
+                <NButton size="small" secondary @click="fetchImages">
                   <template #icon>
                     <SvgIcon icon="material-symbols:refresh" />
                   </template>
                   刷新
                 </NButton>
-                <NButton size="tiny" secondary @click="handleSelectAllCloudImages">
+                <NButton size="small" secondary @click="handleSelectAllCloudImages">
                   {{ selectedCloudPaths.length === filteredCloudImages.length && filteredCloudImages.length > 0 ? '取消全选' : '全选当前' }}
                 </NButton>
                 <NButton
                   v-if="selectedCloudPaths.length > 0"
-                  size="tiny"
+                  size="small"
                   type="error"
                   secondary
                   @click="handleDeleteSelectedCloudImages"
@@ -606,7 +619,7 @@ onMounted(() => {
                 </NButton>
                 <NButton
                   v-if="cloudImages.length > 0"
-                  size="tiny"
+                  size="small"
                   quaternary
                   type="error"
                   @click="handleClearAllCloudImages"
@@ -615,7 +628,7 @@ onMounted(() => {
                 </NButton>
                 <NPopconfirm @positive-click="handleSyncAllImages">
                   <template #trigger>
-                    <NButton size="tiny" type="primary" :loading="syncAllLoading">
+                    <NButton size="small" type="primary" :loading="syncAllLoading">
                       <template #icon>
                         <SvgIcon icon="material-symbols:cloud-download" />
                       </template>
@@ -624,7 +637,7 @@ onMounted(() => {
                   </template>
                   确认将云端存储中的全部图片一次性下载并同步到本地存储吗？
                 </NPopconfirm>
-              </NSpace>
+              </div>
             </template>
 
             <NAlert type="info" size="small" class="mb-4">

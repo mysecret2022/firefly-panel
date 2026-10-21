@@ -62,6 +62,42 @@ const moveModalVisible = ref(false)
 const moveTargetIds = ref<number[]>([])
 const targetCategory = ref<number>(1)
 
+// 大图全屏预览 (单机放大，再点击一下直接退出缩小)
+const previewImageSrc = ref<string | null>(null)
+const previewImageName = ref<string>('')
+
+function openPreview(item: FileItem) {
+  previewImageSrc.value = item.src
+  previewImageName.value = item.fileName
+}
+
+function closePreview() {
+  previewImageSrc.value = null
+}
+
+async function copyDirectLink(e: MouseEvent) {
+  e.stopPropagation()
+  if (!previewImageSrc.value)
+    return
+  const fullUrl = previewImageSrc.value.startsWith('http')
+    ? previewImageSrc.value
+    : `${window.location.origin}/${previewImageSrc.value.replace(/^\//, '')}`
+  await navigator.clipboard.writeText(fullUrl)
+  ms.success('已复制图片直链！')
+}
+
+async function copyMarkdownLink(e: MouseEvent) {
+  e.stopPropagation()
+  if (!previewImageSrc.value)
+    return
+  const fullUrl = previewImageSrc.value.startsWith('http')
+    ? previewImageSrc.value
+    : `${window.location.origin}/${previewImageSrc.value.replace(/^\//, '')}`
+  const md = `![${previewImageName.value || 'image'}](${fullUrl})`
+  await navigator.clipboard.writeText(md)
+  ms.success('已复制 Markdown 格式外链！')
+}
+
 // 根据当前 Tab 过滤展示的列表
 const filteredList = computed(() => {
   if (currentTab.value === 'wallpapers')
@@ -328,7 +364,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col p-3 bg-slate-50 dark:bg-zinc-900 rounded-xl overflow-hidden box-border">
+  <div class="h-full flex flex-col p-2 bg-slate-50 dark:bg-zinc-900 rounded-xl overflow-hidden box-border">
     <!-- 顶部说明与 Tab 切换 -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-gray-200 dark:border-zinc-800 gap-2">
       <NTabs v-model:value="currentTab" type="segment" size="small" class="w-full sm:w-auto">
@@ -366,10 +402,10 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 批量操作工具栏 -->
-    <div class="flex flex-wrap items-center justify-between gap-2 py-2 text-xs text-gray-500 dark:text-gray-400">
+    <!-- 批量操作工具栏 (字体大 1 号，统一 size="small") -->
+    <div class="flex flex-wrap items-center justify-between gap-2 py-2 text-sm text-gray-500 dark:text-gray-400">
       <div class="flex items-center gap-2">
-        <NButton size="tiny" secondary @click="handleSelectAll">
+        <NButton size="small" secondary @click="handleSelectAll">
           {{ isAllSelected ? '取消全选' : '全选当前页' }}
         </NButton>
         <span v-if="selectedIds.length > 0" class="text-green-600 dark:text-green-400 font-medium">
@@ -378,10 +414,10 @@ onMounted(() => {
       </div>
 
       <div class="flex items-center gap-2">
-        <!-- 批量移动分类 -->
+        <!-- 移动分类 (字号大 1 号) -->
         <NButton
           v-if="selectedIds.length > 0"
-          size="tiny"
+          size="small"
           secondary
           @click="openMoveModal(selectedIds)"
         >
@@ -391,9 +427,10 @@ onMounted(() => {
           移动分类 ({{ selectedIds.length }})
         </NButton>
 
+        <!-- 批量推送到云端 (字号大 1 号) -->
         <NButton
           v-if="selectedIds.length > 0"
-          size="tiny"
+          size="small"
           type="info"
           secondary
           :loading="loading"
@@ -405,9 +442,10 @@ onMounted(() => {
           {{ authStore.userInfo?.role === 1 ? `批量推送到云端 (${selectedIds.length})` : `申请同步到图床 (${selectedIds.length})` }}
         </NButton>
 
+        <!-- 批量删除 (字号大 1 号) -->
         <NButton
           v-if="selectedIds.length > 0"
-          size="tiny"
+          size="small"
           type="error"
           secondary
           :loading="loading"
@@ -419,9 +457,10 @@ onMounted(() => {
           批量删除 ({{ selectedIds.length }})
         </NButton>
 
+        <!-- 清空全部 (字号大 1 号) -->
         <NButton
           v-if="filteredList.length > 0"
-          size="tiny"
+          size="small"
           quaternary
           type="error"
           @click="handleClearAllCurrent"
@@ -431,32 +470,38 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 图片瀑布流 / 网格展示 -->
-    <div class="flex-1 overflow-y-auto mt-1 p-1">
+    <!-- 图片瀑布流 / 网格展示 (减小多余空白，图片更饱满) -->
+    <div class="flex-1 overflow-y-auto mt-1 p-0.5">
       <NSpin :show="loading">
         <div v-if="filteredList.length === 0 && !loading" class="text-center py-16 text-gray-400 text-sm">
           暂无图片，点击右上角上传图片或图标吧
         </div>
 
-        <NGrid v-else cols="2 450:3 680:4 900:6" :x-gap="10" :y-gap="10">
+        <NGrid v-else cols="2 450:3 680:4 900:6" :x-gap="8" :y-gap="8">
           <NGridItem v-for="item in filteredList" :key="item.id">
             <NCard
               size="small"
-              class="relative rounded-xl border border-gray-200 dark:border-zinc-800 transition-all hover:shadow-md group overflow-hidden bg-white dark:bg-zinc-800"
+              class="relative rounded-xl border border-gray-200 dark:border-zinc-800 transition-all hover:shadow-md group overflow-hidden bg-white dark:bg-zinc-800 p-1"
               :class="{ 'ring-2 ring-blue-500': selectedIds.includes(item.id) }"
             >
-              <!-- 勾选复选框 (左上角浮动) -->
-              <div class="absolute top-2 left-2 z-20 bg-white/80 dark:bg-black/80 rounded-md p-0.5 shadow-sm">
+              <!-- 勾选复选框 (左上角浮动，大 1 号 size="medium") -->
+              <div class="absolute top-1.5 left-1.5 z-20 bg-white/90 dark:bg-black/90 rounded-md p-0.5 shadow-sm">
                 <NCheckbox
                   :checked="selectedIds.includes(item.id)"
-                  size="small"
+                  size="medium"
                   @update:checked="() => toggleSelect(item.id)"
                 />
               </div>
 
-              <!-- 状态 Tag (右上角浮动) -->
-              <div class="absolute top-2 right-2 z-20">
-                <NTag v-if="item.syncStatus === 2" size="tiny" type="success" :bordered="false">
+              <!-- 状态 Tag (右上角浮动，已上云采用高亮艳丽红) -->
+              <div class="absolute top-1.5 right-1.5 z-20">
+                <NTag
+                  v-if="item.syncStatus === 2"
+                  size="tiny"
+                  :color="{ color: '#ff3838', textColor: '#ffffff' }"
+                  :bordered="false"
+                  class="font-bold shadow-xs"
+                >
                   已上云
                 </NTag>
                 <NTag v-else-if="item.syncStatus === 1" size="tiny" type="warning" :bordered="false">
@@ -470,14 +515,17 @@ onMounted(() => {
                 </NTag>
               </div>
 
-              <!-- 图片预览区域 -->
+              <!-- 图片预览区域 (点击一下放大预览，再点一下直接退出缩小) -->
               <template #cover>
-                <div class="h-28 w-full bg-slate-100 dark:bg-zinc-900 flex items-center justify-center p-2 box-border">
-                  <NImage
+                <div
+                  class="h-32 w-full bg-slate-100/70 dark:bg-zinc-900/70 flex items-center justify-center p-1 box-border cursor-zoom-in group/img overflow-hidden"
+                  title="点击全屏放大预览"
+                  @click="openPreview(item)"
+                >
+                  <img
                     :src="item.src"
-                    :lazy="true"
-                    object-fit="contain"
-                    class="h-full w-full flex items-center justify-center"
+                    class="h-full w-full object-contain transition-transform duration-200 group-hover/img:scale-105"
+                    loading="lazy"
                   />
                 </div>
               </template>
@@ -485,27 +533,31 @@ onMounted(() => {
               <!-- 卡片底部文件名与操作栏 -->
               <div class="pt-1">
                 <div
-                  class="text-xs truncate font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:text-blue-500 transition"
+                  class="text-xs truncate font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:text-blue-500 transition px-0.5"
                   :title="`${item.fileName} (点击重命名)`"
                   @click="openRenameModal(item)"
                 >
                   {{ item.fileName }}
                 </div>
 
-                <div class="flex items-center justify-between mt-2 pt-1 border-t border-gray-100 dark:border-zinc-800">
+                <div class="flex items-center justify-between mt-1 pt-1 border-t border-gray-100 dark:border-zinc-800">
                   <NButtonGroup size="tiny">
                     <!-- 重命名 -->
-                    <NButton quaternary title="重命名" @click="openRenameModal(item)">
+                    <NButton quaternary title="重命名文件名" @click="openRenameModal(item)">
                       <template #icon>
                         <SvgIcon icon="basil:edit-solid" />
                       </template>
                     </NButton>
 
-                    <!-- 移动分类 -->
-                    <NButton quaternary :title="item.fileType === 0 ? '移动到应用图标' : '移动到壁纸图库'" @click="openMoveModal([item.id])">
-                      <template #icon>
-                        <SvgIcon icon="material-symbols:drive-file-move-outline" />
-                      </template>
+                    <!-- 移动分类图标与 Tab 一致：壁纸用 🎨，图标用 🌄 -->
+                    <NButton
+                      quaternary
+                      :title="item.fileType === 0 ? '一键移入【应用图标】' : '一键移入【壁纸图库】'"
+                      @click="openMoveModal([item.id])"
+                    >
+                      <span class="text-xs">
+                        {{ item.fileType === 0 ? '🎨' : '🌄' }}
+                      </span>
                     </NButton>
 
                     <!-- 设为壁纸 (壁纸分类专属) -->
@@ -520,7 +572,7 @@ onMounted(() => {
                       </template>
                     </NButton>
 
-                    <!-- 推送到云端图床 / 申请同步 -->
+                    <!-- 推送到云端图床 / 申请同步 (使用 cloud.png 图标) -->
                     <NButton
                       quaternary
                       :title="authStore.userInfo?.role === 1 ? '推送到云端图床' : '申请同步到云端'"
@@ -531,7 +583,7 @@ onMounted(() => {
                       </template>
                     </NButton>
 
-                    <!-- 删除 -->
+                    <!-- 删除此图片 -->
                     <NButton
                       quaternary
                       type="error"
@@ -549,6 +601,41 @@ onMounted(() => {
           </NGridItem>
         </NGrid>
       </NSpin>
+    </div>
+
+    <!-- 全屏大图预览浮层 (点击任意位置/再次点击大图本身直接缩小退出) -->
+    <div
+      v-if="previewImageSrc"
+      class="fixed inset-0 z-[9999] bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-4 cursor-zoom-out select-none transition-opacity duration-200"
+      @click="closePreview"
+    >
+      <!-- 顶部轻量浮动操作工具栏 (复制直链 / Markdown，不破坏底部卡片纯净) -->
+      <div
+        class="absolute top-4 flex items-center gap-3 bg-white/10 dark:bg-black/40 border border-white/20 rounded-full px-4 py-1.5 shadow-lg backdrop-blur-lg"
+        @click.stop
+      >
+        <span class="text-xs text-white/80 font-mono truncate max-w-xs">{{ previewImageName }}</span>
+        <NButton size="tiny" type="info" secondary round @click="copyDirectLink">
+          🔗 复制直链
+        </NButton>
+        <NButton size="tiny" type="success" secondary round @click="copyMarkdownLink">
+          📝 复制 Markdown
+        </NButton>
+        <NButton size="tiny" quaternary circle text-color="white" @click="closePreview">
+          ✕
+        </NButton>
+      </div>
+
+      <!-- 放大居中大图 (点击大图本身也直接缩小) -->
+      <img
+        :src="previewImageSrc"
+        class="max-w-[90vw] max-h-[85vh] object-contain shadow-2xl rounded-lg cursor-zoom-out"
+        alt="Preview"
+        @click="closePreview"
+      />
+      <div class="mt-3 text-xs text-white/60">
+        点击任意区域即可退出缩小
+      </div>
     </div>
 
     <!-- 重命名模态框 -->

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, useAttrs, watch } from 'vue'
-import { NModal } from 'naive-ui'
+import { computed, nextTick, onBeforeUnmount, ref, useAttrs, watch } from 'vue'
+import { NButton, NModal } from 'naive-ui'
+import { SvgIcon } from '@/components/common'
 
 const props = withDefaults(
   defineProps<{
@@ -24,8 +25,11 @@ interface Emit {
 const attrs = useAttrs()
 const modalUniqueClass = `round-modal-${Math.random().toString(36).slice(2, 9)}`
 
+const isMaximized = ref(false)
+const prevRect = ref<{ left: number; top: number; width: number; height: number } | null>(null)
+
 const bindAttrs = computed<{ class: string; style: string }>(() => ({
-  class: `${(attrs.class as string) || ''} ${modalUniqueClass} draggable-resizable-modal`,
+  class: `${(attrs.class as string) || ''} ${modalUniqueClass} draggable-resizable-modal ${isMaximized.value ? 'is-maximized' : ''}`,
   style: (attrs.style as string) || '',
 }))
 
@@ -54,23 +58,23 @@ function getCardEl(): HTMLElement | null {
 
 // 确保卡片转换为 fixed 定位，便于绝对坐标拖拽与定点缩放
 function ensureFixedPosition(card: HTMLElement) {
-  if (card.style.position !== 'fixed') {
+  if (card.style.position !== 'fixed' && !isMaximized.value) {
     const rect = card.getBoundingClientRect()
     card.style.position = 'fixed'
     card.style.left = `${rect.left}px`
     card.style.top = `${rect.top}px`
     card.style.margin = '0'
     card.style.transform = 'none'
-    card.style.width = `${rect.width}px`
-    card.style.height = `${rect.height}px`
+    card.style.width = `${Math.max(580, rect.width)}px`
+    card.style.height = `${Math.max(480, rect.height)}px`
   }
 }
 
 function handleHeaderMouseDown(e: MouseEvent) {
-  if (props.draggable === false)
+  if (props.draggable === false || isMaximized.value)
     return
   const target = e.target as HTMLElement
-  if (target.closest('.n-base-close, button, a, input, select, textarea, .n-dropdown-trigger'))
+  if (target.closest('.n-base-close, button, a, input, select, textarea, .n-dropdown-trigger, .modal-header-btn'))
     return
 
   const card = getCardEl()
@@ -92,7 +96,7 @@ function handleHeaderMouseDown(e: MouseEvent) {
 }
 
 function onDragMouseMove(e: MouseEvent) {
-  if (!isDragging)
+  if (!isDragging || isMaximized.value)
     return
   const card = getCardEl()
   if (!card)
@@ -101,8 +105,8 @@ function onDragMouseMove(e: MouseEvent) {
   const deltaX = e.clientX - dragMouseStartX
   const deltaY = e.clientY - dragMouseStartY
 
-  const newLeft = Math.max(10, Math.min(window.innerWidth - 60, cardStartLeft + deltaX))
-  const newTop = Math.max(10, Math.min(window.innerHeight - 60, cardStartTop + deltaY))
+  const newLeft = Math.max(0, Math.min(window.innerWidth - 80, cardStartLeft + deltaX))
+  const newTop = Math.max(0, Math.min(window.innerHeight - 80, cardStartTop + deltaY))
 
   card.style.left = `${newLeft}px`
   card.style.top = `${newTop}px`
@@ -114,9 +118,9 @@ function onDragMouseUp() {
   document.removeEventListener('mouseup', onDragMouseUp)
 }
 
-// 右下角拖动变形：左边和上边锁定不动，向右和向下拖动改变宽高
+// 右下角拖动变形：左边和上边锁定不动，向右和向下拖动改变宽高 (保证最小 580x480 防挤压)
 function handleResizeMouseDown(e: MouseEvent) {
-  if (props.resizable === false)
+  if (props.resizable === false || isMaximized.value)
     return
   const card = getCardEl()
   if (!card)
@@ -137,20 +141,20 @@ function handleResizeMouseDown(e: MouseEvent) {
 }
 
 function onResizeMouseMove(e: MouseEvent) {
-  if (!isResizing)
+  if (!isResizing || isMaximized.value)
     return
   const card = getCardEl()
   if (!card)
     return
 
-  // 左上角严格固定在 (fixedLeft, fixedTop)，只根据鼠标当前坐标计算新的 width 和 height
-  const newWidth = Math.max(320, Math.min(window.innerWidth - fixedLeft - 10, e.clientX - fixedLeft))
-  const newHeight = Math.max(200, Math.min(window.innerHeight - fixedTop - 10, e.clientY - fixedTop))
+  // 左上角严格固定在 (fixedLeft, fixedTop)，最小限制 580x480
+  const newWidth = Math.max(580, Math.min(window.innerWidth - fixedLeft - 10, e.clientX - fixedLeft))
+  const newHeight = Math.max(480, Math.min(window.innerHeight - fixedTop - 10, e.clientY - fixedTop))
 
   card.style.width = `${newWidth}px`
   card.style.height = `${newHeight}px`
-  card.style.maxWidth = '98vw'
-  card.style.maxHeight = '98vh'
+  card.style.maxWidth = '99vw'
+  card.style.maxHeight = '99vh'
 }
 
 function onResizeMouseUp() {
@@ -159,7 +163,56 @@ function onResizeMouseUp() {
   document.removeEventListener('mouseup', onResizeMouseUp)
 }
 
-// 双击标题栏一键复位
+// 最大化与还原切换
+function toggleMaximize() {
+  const card = getCardEl()
+  if (!card)
+    return
+
+  if (!isMaximized.value) {
+    // 记录最大化前的尺寸与坐标
+    const rect = card.getBoundingClientRect()
+    prevRect.value = {
+      left: parseFloat(card.style.left) || rect.left,
+      top: parseFloat(card.style.top) || rect.top,
+      width: parseFloat(card.style.width) || rect.width,
+      height: parseFloat(card.style.height) || rect.height,
+    }
+    card.style.transition = 'all 0.2s ease'
+    card.style.position = 'fixed'
+    card.style.left = '10px'
+    card.style.top = '10px'
+    card.style.width = 'calc(100vw - 20px)'
+    card.style.height = 'calc(100vh - 20px)'
+    card.style.maxWidth = 'calc(100vw - 20px)'
+    card.style.maxHeight = 'calc(100vh - 20px)'
+    card.style.margin = '0'
+    isMaximized.value = true
+  }
+  else {
+    // 恢复
+    card.style.transition = 'all 0.2s ease'
+    if (prevRect.value) {
+      card.style.left = `${prevRect.value.left}px`
+      card.style.top = `${prevRect.value.top}px`
+      card.style.width = `${prevRect.value.width}px`
+      card.style.height = `${prevRect.value.height}px`
+      card.style.maxWidth = '99vw'
+      card.style.maxHeight = '99vh'
+    }
+    else {
+      resetPositionAndSize()
+    }
+    isMaximized.value = false
+  }
+}
+
+// 双击标题栏在最大化与还原之间切换
+function handleHeaderDblClick() {
+  toggleMaximize()
+}
+
+// 双击重置
 function resetPositionAndSize() {
   const card = getCardEl()
   if (card) {
@@ -172,6 +225,8 @@ function resetPositionAndSize() {
     card.style.height = ''
     card.style.maxWidth = ''
     card.style.maxHeight = ''
+    card.style.transition = ''
+    isMaximized.value = false
   }
 }
 
@@ -185,15 +240,33 @@ watch(
           if (!card)
             return
 
-          // 绑定 Header 拖拽
+          // 绑定 Header 拖拽与双击
           const header = card.querySelector('.n-card-header') as HTMLElement
           if (header && !header.dataset.dragAttached) {
             header.dataset.dragAttached = 'true'
             header.style.cursor = 'move'
             header.style.userSelect = 'none'
-            header.title = '按住拖动窗口，双击居中复位'
+            header.title = '按住拖动窗口，双击最大化/还原'
             header.addEventListener('mousedown', handleHeaderMouseDown)
-            header.addEventListener('dblclick', resetPositionAndSize)
+            header.addEventListener('dblclick', handleHeaderDblClick)
+
+            // 注入最大化按钮到右上角 (位于关闭按钮前)
+            const closeBtn = card.querySelector('.n-card-header__close, .n-base-close')
+            if (closeBtn && !header.querySelector('.custom-maximize-btn')) {
+              const maxBtn = document.createElement('div')
+              maxBtn.className = 'custom-maximize-btn modal-header-btn'
+              maxBtn.title = '最大化 / 还原窗口'
+              maxBtn.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="2" y="2" width="10" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/>
+                </svg>
+              `
+              maxBtn.addEventListener('click', (e) => {
+                e.stopPropagation()
+                toggleMaximize()
+              })
+              closeBtn.parentElement?.insertBefore(maxBtn, closeBtn)
+            }
           }
 
           // 添加右下角拉伸缩放手柄
@@ -233,7 +306,7 @@ onBeforeUnmount(() => {
     preset="card"
     :size="size"
     v-bind="bindAttrs"
-    style="border-radius: 1rem;"
+    style="border-radius: 1.1rem; min-width: 580px; min-height: 480px;"
     :style="$parent"
     :title="title"
   >
@@ -261,11 +334,56 @@ onBeforeUnmount(() => {
   display: flex !important;
   flex-direction: column !important;
   box-sizing: border-box;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.15), 0 0 1px rgba(0, 0, 0, 0.1) !important;
+  overflow: hidden !important;
 }
 
+.dark .draggable-resizable-modal {
+  background-color: rgba(24, 24, 28, 0.90) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* 消除子容器多余空白，自适应撑满 */
 .draggable-resizable-modal .n-card__content {
-  flex: 1 1 auto;
+  flex: 1 1 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
   overflow: auto;
+  padding: 0.5rem !important;
+}
+
+/* 头部最大化按钮 */
+.custom-maximize-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-right: 8px;
+  border-radius: 6px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.custom-maximize-btn:hover {
+  background-color: rgba(0, 0, 0, 0.06);
+  color: #18a058;
+}
+
+.dark .custom-maximize-btn {
+  color: #aaa;
+}
+
+.dark .custom-maximize-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #63e2b7;
 }
 
 .custom-modal-resizer {
