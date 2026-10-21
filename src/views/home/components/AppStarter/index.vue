@@ -4,11 +4,13 @@ import { NLayout, NLayoutContent, NLayoutSider, NSpace } from 'naive-ui'
 import { useAuthStore } from '@/store'
 import { AppLoader, RoundCardModal, SvgIcon } from '@/components/common'
 import { t } from '@/locales'
+import cloudIcon from '@/assets/cloud.png'
 
 interface App {
   name: string
   componentName: string
   icon: string
+  iconImg?: string
   auth?: number
 }
 const props = defineProps<{
@@ -101,7 +103,8 @@ onMounted(() => {
   const cloudStorageApp: App = {
     name: '云存储与漫游',
     componentName: 'CloudStorage',
-    icon: 'material-symbols:cloud-sync-outline',
+    icon: '',
+    iconImg: cloudIcon,
     auth: 1,
   }
   // 初始化
@@ -166,8 +169,9 @@ onUnmounted(() => {
                       class="bg-white dark:bg-zinc-800 p-[10px] rounded-lg mb-[5px] font-bold cursor-pointer flex items-center hover:bg-slate-50 focus:bg-slate-50"
                     >
                       <div class="flex items-center justify-center">
-                        <div class="text-lg">
-                          <SvgIcon :icon="item.icon" />
+                        <div class="text-lg flex items-center justify-center w-[1.125rem] h-[1.125rem]">
+                          <img v-if="item.iconImg" :src="item.iconImg" class="w-full h-full object-contain" alt="" />
+                          <SvgIcon v-else :icon="item.icon" />
                         </div>
                         <span class="ml-2">{{ item.name }}</span>
                       </div>

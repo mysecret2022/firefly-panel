@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"strings"
 	"sun-panel/api/api_v1/common/apiReturn"
 	"sun-panel/global"
 	"sun-panel/models"
@@ -17,6 +18,12 @@ func LoginInterceptor(c *gin.Context) {
 	cToken := c.GetHeader("token")
 	if cToken == "" {
 		cToken = c.Query("token")
+	}
+	if cToken == "" {
+		authHeader := c.GetHeader("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			cToken = strings.TrimPrefix(authHeader, "Bearer ")
+		}
 	}
 
 	// 没有token信息视为未登录
