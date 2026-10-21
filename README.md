@@ -26,7 +26,7 @@
 ```yaml
 services:
   sun-panel:
-    image: ghcr.io/mysecret2022/my-sun-panel:1.0.2
+    image: ghcr.io/mysecret2022/my-sun-panel:latest
     container_name: firefly-panel
     restart: always
     ports:
