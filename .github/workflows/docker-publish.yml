@@ -45,8 +45,9 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}
           tags: |
             type=raw,value=latest
-            type=raw,value=1.0.1
-            type=raw,value=v1.0.1
+            type=raw,value=dev
+            type=raw,value=1.0.2
+            type=raw,value=v1.0.2
             type=ref,event=branch
             type=ref,event=tag
 

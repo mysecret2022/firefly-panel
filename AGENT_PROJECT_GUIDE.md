@@ -110,12 +110,14 @@ go build -o sun-panel --ldflags="-X sun-panel/global.RUNCODE=release" main.go
 
 ---
 
-## 4. 下一版本/阶段核心待办 (Next Step Roadmap)
-- [ ] **项目与仓库重命名**：将 GitHub 仓库名称及工程统一更名为 **`firefly-panel`**。
-- [ ] **全套配套联动更新**：
-  - GitHub Remote URL 更新为 `.../firefly-panel.git`
-  - GitHub Actions 镜像发布路径更新为 `ghcr.io/mysecret2022/firefly-panel`
-  - `docker-compose.yml` 中的镜像名更新为 `ghcr.io/mysecret2022/firefly-panel`
-  - `package.json` 中的 `name` 规范为 `firefly-panel`
-  - `README.md` 与文档中所有相关引用全面对齐。
+## 4. 架构与生态联动 (Ecosystem Integration)
+- **项目与仓库正式统一命名**：已正式统一更名为 **`firefly-panel`**。
+- **全套配套联动状态**：
+  - [x] GitHub 远程仓库重命名为 `mysecret2022/firefly-panel` (https://github.com/mysecret2022/firefly-panel)
+  - [x] GitHub Remote URL 更新为 `https://github.com/mysecret2022/firefly-panel.git`
+  - [x] GitHub Actions 镜像发布路径自动对应 `ghcr.io/mysecret2022/firefly-panel`
+  - [x] 增加专属 `:dev` 测试版镜像标签，并保留 `:latest` 和版本号标签
+  - [x] `docker-compose.yml` 中的服务名与镜像名更新为 `ghcr.io/mysecret2022/firefly-panel:dev`
+  - [x] `package.json` 中的 `name` 规范为 `firefly-panel`
+  - [x] `README.md` 与文档中所有相关引用全面对齐。
 

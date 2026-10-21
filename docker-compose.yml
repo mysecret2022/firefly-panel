@@ -1,8 +1,9 @@
 services:
-  sun-panel:
-    # 您的专属纯净版镜像（同时支持 x86_64 和 ARM64 处理器）
-    image: ghcr.io/mysecret2022/my-sun-panel:latest
-    container_name: sun-panel
+  firefly-panel:
+    # 您的专属流萤主题镜像（同时支持 x86_64 和 ARM64 处理器）
+    image: ghcr.io/mysecret2022/firefly-panel:dev
+    # 稳定正式版可切换为：ghcr.io/mysecret2022/firefly-panel:latest
+    container_name: firefly-panel
     restart: always
     ports:
       - "3002:3002"
