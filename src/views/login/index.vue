@@ -116,8 +116,9 @@ function handleChangeLanuage(value: Language) {
           </NButton>
         </div> -->
 
-        <div class="flex justify-center text-slate-300">
-          Powered By <a href="https://github.com/hslr-s/sun-panel" target="_blank" class="ml-[5px] text-slate-500">Sun-Panel</a>
+        <div class="flex flex-col items-center justify-center text-xs text-slate-400 mt-4 space-y-1">
+          <div>初始账号: <strong class="text-slate-600 dark:text-slate-200">admin</strong> &nbsp;|&nbsp; 初始密码: <strong class="text-slate-600 dark:text-slate-200">admin</strong></div>
+          <div>Powered By <a href="https://github.com/mysecret2022/my-sun-panel" target="_blank" class="text-blue-500 hover:underline">Firefly-panel</a></div>
         </div>
       </NForm>
     </NCard>

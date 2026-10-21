@@ -8,7 +8,6 @@ import {
   NCheckbox,
   NCheckboxGroup,
   NDivider,
-  NInput,
   NSpace,
   NTabPane,
   NTabs,
@@ -32,15 +31,13 @@ interface ItemGroup extends Panel.ItemIconGroup {
 const ms = useMessage()
 const dialog = useDialog()
 
-const jsonData = ref<string | null>(null)
 const importWarning = ref<string[]>([])
 const importRoundModalShow = ref(false)
 const exportRoundModalShow = ref(false)
 const loading = ref(false)
 const uploadLoading = ref(false)
 const restoreLoading = ref(false)
-const version = ref('') // 当前软件版本
-const debug = ref(false)
+const version = ref('1.0.1')
 
 const importObj = ref<ImportJsonResult | null>(null)
 const importItems = ref<string[]>(['icons'])
@@ -50,7 +47,7 @@ const checkedItems = ref<string[]>(['icons'])
 function handleExportFullBackup() {
   try {
     exportBackup()
-    ms.success('全量备份已开始下载，请妥善保存备份文件！')
+    ms.success('整站全量备份已生成，正在下载...')
   }
   catch (error) {
     ms.error('导出失败，请重试')
@@ -64,8 +61,8 @@ function handleRestoreFileChange(options: { file: UploadFileInfo; fileList: Arra
     return
 
   dialog.warning({
-    title: '确认恢复数据？',
-    content: `即将从【${file.name}】恢复数据，该操作将覆盖现有的分组、图标与系统配置，并解压还原资源附件。是否确认继续？`,
+    title: '确认恢复整站数据？',
+    content: `即将从【${file.name}】还原数据。这将会覆盖现有数据表并还原图片附件，是否确认继续？`,
     positiveText: '确认恢复',
     negativeText: '取消',
     onPositiveClick: async () => {
@@ -76,7 +73,7 @@ function handleRestoreFileChange(options: { file: UploadFileInfo; fileList: Arra
       try {
         const res: any = await restoreBackup(formData)
         if (res.code === 0) {
-          ms.success('数据恢复成功！正在重新加载页面...')
+          ms.success('数据恢复成功！页面即将自动刷新...')
           setTimeout(() => {
             window.location.reload()
           }, 1500)
@@ -86,7 +83,7 @@ function handleRestoreFileChange(options: { file: UploadFileInfo; fileList: Arra
         }
       }
       catch (err: any) {
-        ms.error(`恢复异常: ${err.message || '网络或服务错误'}`)
+        ms.error(`恢复异常: ${err.message || '网络连接异常'}`)
       }
       finally {
         restoreLoading.value = false
@@ -230,7 +227,6 @@ async function handleStartExport() {
     const iconGroups = await exportIcons()
     exportResult.addIconsData(iconGroups)
   }
-  jsonData.value = exportResult.string()
   exportResult.exportFile()
   loading.value = false
   exportRoundModalShow.value = false
@@ -251,93 +247,103 @@ async function handleStartImport() {
 </script>
 
 <template>
-  <div class="p-3">
+  <div class="h-full w-full overflow-y-auto px-4 py-2 box-border">
     <NTabs type="line" animated>
-      <!-- 全量整站备份与迁移 -->
-      <NTabPane name="full-backup" tab="📦 全站备份与数据迁移 (ZIP)">
-        <div class="space-y-4 pt-2">
-          <NAlert type="info" :bordered="false">
+      <!-- 全量整站备份与数据迁移 -->
+      <NTabPane name="full-backup" tab="📦 整站数据备份与恢复 (ZIP)">
+        <div class="space-y-4 pt-2 pb-6">
+          <NAlert type="info" :bordered="false" class="text-xs">
             <template #header>
-              全量备份与无缝迁移说明
+              数据无缝迁移说明
             </template>
-            打包内容包括：<strong>全部用户与权限、导航分组、卡片图标、系统设置、个性化配置</strong>以及 <strong>自定义上传的图标壁纸文件</strong>。
-            在新服务器/NAS 部署后，直接上传备份包即可 100% 完整复原，无需重新配置。
+            全量打包包含：<strong>所有账号与权限、导航分组、卡片图标、样式设置</strong>以及<strong>自定义上传的图标和壁纸图片</strong>。在新设备或新容器部署后，上传备份包即可 100% 完整还原，无需重新配置。
           </NAlert>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-            <NCard title="导出全站备份" size="small" class="shadow-sm">
-              <p class="text-gray-500 text-sm mb-4">
-                实时将整站数据与静态附件打包成 .zip 文件下载到本地。
-              </p>
-              <NButton type="primary" size="large" block @click="handleExportFullBackup">
-                <template #icon>
-                  <SvgIcon icon="fa6:solid-file-export" />
-                </template>
-                一键生成并下载整站备份 (.zip)
-              </NButton>
-            </NCard>
-
-            <NCard title="恢复 / 迁移数据" size="small" class="shadow-sm">
-              <p class="text-gray-500 text-sm mb-4">
-                上传历史备份的 .zip 或 .json 文件，一键恢复还原所有数据。
-              </p>
-              <NUpload
-                accept=".zip,.json"
-                :default-upload="false"
-                :show-file-list="false"
-                @change="handleRestoreFileChange"
-              >
-                <NButton type="warning" size="large" block :loading="restoreLoading">
+          <!-- 导出备份卡片 (纵向全宽自适应，显示完整) -->
+          <NCard title="1. 导出整站全量备份" size="small" :bordered="true" class="rounded-xl shadow-xs">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div class="text-gray-500 text-xs leading-relaxed">
+                实时将当前数据库与上传的附件打包为一个 ZIP 压缩文件并保存到本地。
+              </div>
+              <div class="shrink-0">
+                <NButton type="primary" size="medium" @click="handleExportFullBackup">
                   <template #icon>
-                    <SvgIcon icon="fa6:solid-file-import" />
+                    <SvgIcon icon="fa6:solid-file-export" />
                   </template>
-                  上传备份文件并一键恢复 (.zip / .json)
+                  导出备份 (.zip)
                 </NButton>
-              </NUpload>
-            </NCard>
-          </div>
+              </div>
+            </div>
+          </NCard>
+
+          <!-- 恢复迁移卡片 (纵向全宽自适应，显示完整) -->
+          <NCard title="2. 恢复整站数据 (迁移还原)" size="small" :bordered="true" class="rounded-xl shadow-xs">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div class="text-gray-500 text-xs leading-relaxed">
+                上传之前导出的 .zip 备份包（或 .json 文件），一键解压并覆盖还原所有数据。
+              </div>
+              <div class="shrink-0">
+                <NUpload
+                  accept=".zip,.json"
+                  :default-upload="false"
+                  :show-file-list="false"
+                  @change="handleRestoreFileChange"
+                >
+                  <NButton type="warning" size="medium" :loading="restoreLoading">
+                    <template #icon>
+                      <SvgIcon icon="fa6:solid-file-import" />
+                    </template>
+                    上传并还原数据 (.zip)
+                  </NButton>
+                </NUpload>
+              </div>
+            </div>
+          </NCard>
         </div>
       </NTabPane>
 
       <!-- 单用户卡片导入导出 (JSON) -->
-      <NTabPane name="json-cards" tab="🔖 单用户卡片导入导出 (JSON)">
-        <div class="pt-2">
-          <NAlert type="info" :bordered="false">
-            <p>{{ $t('apps.exportImport.tip') }}</p>
+      <NTabPane name="json-cards" tab="🔖 单账号卡片导入导出 (JSON)">
+        <div class="space-y-4 pt-2 pb-6">
+          <NAlert type="info" :bordered="false" class="text-xs">
+            {{ $t('apps.exportImport.tip') }}
           </NAlert>
-          <div class="flex justify-center m-[40px]">
-            <div class="m-[10px]">
+
+          <NCard title="导航卡片书签管理" size="small" :bordered="true" class="rounded-xl shadow-xs">
+            <div class="text-gray-500 text-xs mb-4">
+              导出当前账号下的所有图标与分组为 JSON 格式，或导入其他用户的卡片配置。
+            </div>
+            <div class="flex flex-wrap gap-4 items-center">
               <NUpload
-                accept=".sun-panel.json,.sunpanel.json"
+                accept=".sun-panel.json,.sunpanel.json,.json"
                 directory-dnd
                 :default-upload="false"
                 :show-file-list="false"
                 @change="handleFileChange"
               >
-                <NButton type="info" size="large" :loading="uploadLoading">
+                <NButton type="info" size="medium" :loading="uploadLoading">
                   <template #icon>
                     <SvgIcon icon="fa6:solid-file-import" />
                   </template>
-                  {{ $t('apps.exportImport.import') }}
+                  {{ $t('apps.exportImport.import') }} JSON
                 </NButton>
               </NUpload>
-            </div>
-            <div class="m-[10px]">
-              <NButton type="info" size="large" @click="exportRoundModalShow = !exportRoundModalShow">
+
+              <NButton type="info" size="medium" @click="exportRoundModalShow = !exportRoundModalShow">
                 <template #icon>
                   <SvgIcon icon="fa6:solid-file-export" />
                 </template>
-                {{ $t('apps.exportImport.export') }}
+                {{ $t('apps.exportImport.export') }} JSON
               </NButton>
             </div>
-          </div>
+          </NCard>
         </div>
       </NTabPane>
     </NTabs>
 
     <!-- 弹窗部分 -->
-    <RoundCardModal v-model:show="importRoundModalShow" style="max-width: 400px;" :title="$t('apps.exportImport.import')">
-      <div v-if="importWarning.length > 0">
+    <RoundCardModal v-model:show="importRoundModalShow" style="max-width: 420px;" :title="$t('apps.exportImport.import')">
+      <div v-if="importWarning.length > 0" class="mb-3">
         <NAlert :title="$t('common.warning')" type="warning">
           <div v-for="(text, index) in importWarning" :key="index">
             {{ text }}
@@ -348,14 +354,14 @@ async function handleStartImport() {
         {{ $t('apps.exportImport.selectImportData') }}
       </NDivider>
 
-      <NSpace justify="center" style="margin-top: 20px;">
+      <NSpace justify="center" style="margin-top: 15px;">
         <NCheckboxGroup v-model:value="checkedItems">
           <NCheckbox v-if="importItems.includes('icons')" value="icons" :label="$t('apps.exportImport.moduleIcon')" />
           <NCheckbox v-if="importItems.includes('style')" value="style" :label="$t('apps.exportImport.moduleStyle')" />
         </NCheckboxGroup>
       </NSpace>
       <NSpace justify="center">
-        <div class="mt-[40px]">
+        <div class="mt-8">
           <NButton type="success" :disabled="checkedItems.length === 0" :loading="loading" @click="handleStartImport">
             {{ $t('common.continue') }}
           </NButton>
@@ -363,19 +369,19 @@ async function handleStartImport() {
       </NSpace>
     </RoundCardModal>
 
-    <RoundCardModal v-model:show="exportRoundModalShow" style="max-width: 400px;" :title="$t('apps.exportImport.export')">
+    <RoundCardModal v-model:show="exportRoundModalShow" style="max-width: 420px;" :title="$t('apps.exportImport.export')">
       <NDivider title-placement="left">
         {{ $t('apps.exportImport.selectExportData') }}
       </NDivider>
 
-      <NSpace justify="center" style="margin-top: 20px;">
+      <NSpace justify="center" style="margin-top: 15px;">
         <NCheckboxGroup v-model:value="checkedItems">
           <NCheckbox v-if="importItems.includes('icons')" value="icons" :label="$t('apps.exportImport.moduleIcon')" />
           <NCheckbox v-if="importItems.includes('style')" value="style" :label="$t('apps.exportImport.moduleStyle')" />
         </NCheckboxGroup>
       </NSpace>
       <NSpace justify="center">
-        <div class="mt-[40px]">
+        <div class="mt-8">
           <NButton type="success" :disabled="checkedItems.length === 0" :loading="loading" @click="handleStartExport">
             {{ $t('common.continue') }}
           </NButton>

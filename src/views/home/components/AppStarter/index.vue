@@ -25,7 +25,7 @@ const screenWidth = ref(0)
 const isSmallScreen = ref(false)
 const defaultTitle = t('appLauncher.title')
 const title = ref('')
-const height = ref('500px')
+const height = ref('520px')
 
 const apps = ref<App[]>([
   {

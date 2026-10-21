@@ -1,22 +1,21 @@
-# Sun-Panel (集成整站备份与迁移版)
+# Firefly-panel (v1.0.1)
 
 > [!IMPORTANT]
 > **开源与版权声明**：
-> - **本项目基于 [hslr-s/sun-panel](https://github.com/hslr-s/sun-panel) 进行二次开发，本项目作者非官方维护者。**
-> - **完整保留原作者（红烧猎人）版权与 [MIT License](./LICENSE) 协议。**
-> - 本仓库主要增加了开源版本中缺失的【整站数据全量备份与无缝迁移（ZIP 打包）】功能，并配置了多架构自动化构建，便于个人学习与灾备使用。
+> - **原项目**：[hslr-s/sun-panel](https://github.com/hslr-s/sun-panel) (原作者：红烧猎人)
+> - **二次开发作者**：roland
+> - **项目声明**：本项目基于原开源项目进行二次开发与功能增强，维护者非官方维护者。完整保留原作者版权与 [MIT License](./LICENSE) 协议。
+> - **主要功能**：自主集成了开源版本缺失的【整站数据全量备份与无缝迁移（ZIP 打包）】，修改默认初始密码为 `admin`，优化卡片自适应显示与高清壁纸，并支持 x86_64 与 ARM64 双架构自动构建。
 
 ### 🚀 一键部署 (Docker Compose)
 
 在您的 NAS 或服务器创建 `docker-compose.yml`：
 
 ```yaml
-version: "3.8"
-
 services:
   sun-panel:
-    image: ghcr.io/mysecret2022/my-sun-panel:latest
-    container_name: sun-panel
+    image: ghcr.io/mysecret2022/my-sun-panel:1.0.1
+    container_name: firefly-panel
     restart: always
     ports:
       - "3002:3002"
@@ -31,7 +30,7 @@ services:
 ```bash
 docker compose up -d
 ```
-打开浏览器访问：`http://<您的IP>:3002`
+打开浏览器访问：`http://<您的IP>:3002`（初始账号密码均为：`admin` / `admin`）
 
 ---
 
