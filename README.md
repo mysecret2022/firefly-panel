@@ -1,11 +1,18 @@
-# Firefly-panel (v1.0.1)
+# Firefly-panel (v1.0.2)
 
 > [!IMPORTANT]
 > **开源与版权声明**：
 > - **原项目**：[hslr-s/sun-panel](https://github.com/hslr-s/sun-panel) (原作者：红烧猎人)
 > - **二次开发作者**：roland
 > - **项目声明**：本项目基于原开源项目进行二次开发与功能增强，维护者非官方维护者。完整保留原作者版权与 [MIT License](./LICENSE) 协议。
-> - **主要功能**：自主集成了开源版本缺失的【整站数据全量备份与无缝迁移（ZIP 打包）】，修改默认初始密码为 `admin`，优化卡片自适应显示与高清壁纸，并支持 x86_64 与 ARM64 双架构自动构建。
+> - **主要功能**：
+>   1. 【整站全量备份与无缝迁移（ZIP 打包）】：已修复容器及小窗口下显示与导出不全问题。
+>   2. 【云存储与多端漫游图床】：支持 **GitHub 仓库** 与 **Cloudflare R2 (S3 通用协议)** 双引擎，支持一键全部拉取到本地或单张选择同步。
+>   3. 【本地 + 云端双写机制】：默认保持关闭，用户授权后自动将新上传的图标与壁纸双写备份至云端。
+>   4. 【仓库属性智能感知】：自动探测目标仓库为私有 (Private) 还是公开 (Public)，提供安全状态指引。
+>   5. 【AES-256 强加密备份保障】：上传云端全站备份前**强制要求用户手动输入加密密码**，采用行业级 AES-256-GCM 算法加密，防范公开外链泄露风险。
+>   6. 【修改默认初始密码】：默认账密均为 `admin` / `admin`。
+>   7. 【多架构支持】：支持 `linux/amd64` (x86_64) 与 `linux/arm64` (ARM64 如各类主流 NAS) 自动化云端构建。
 
 ### 🚀 一键部署 (Docker Compose)
 
@@ -14,7 +21,7 @@
 ```yaml
 services:
   sun-panel:
-    image: ghcr.io/mysecret2022/my-sun-panel:1.0.1
+    image: ghcr.io/mysecret2022/my-sun-panel:1.0.2
     container_name: firefly-panel
     restart: always
     ports:

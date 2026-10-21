@@ -98,9 +98,17 @@ onMounted(() => {
     icon: 'lucide-users',
     auth: 1,
   }
+  const cloudStorageApp: App = {
+    name: '云存储与漫游',
+    componentName: 'CloudStorage',
+    icon: 'material-symbols:cloud-sync-outline',
+    auth: 1,
+  }
   // 初始化
-  if (authStore.userInfo?.role === 1)
+  if (authStore.userInfo?.role === 1) {
     apps.value.push(adminApp)
+    apps.value.push(cloudStorageApp)
+  }
 
   window.addEventListener('resize', handleResize)
   handleResize()

@@ -37,7 +37,7 @@ const exportRoundModalShow = ref(false)
 const loading = ref(false)
 const uploadLoading = ref(false)
 const restoreLoading = ref(false)
-const version = ref('1.0.1')
+const version = ref('1.0.2')
 
 const importObj = ref<ImportJsonResult | null>(null)
 const importItems = ref<string[]>(['icons'])

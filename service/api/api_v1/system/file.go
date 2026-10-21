@@ -1,6 +1,7 @@
 package system
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path"
@@ -9,6 +10,7 @@ import (
 	"sun-panel/api/api_v1/common/apiReturn"
 	"sun-panel/api/api_v1/common/base"
 	"sun-panel/global"
+	"sun-panel/lib/cloudClient"
 	"sun-panel/lib/cmn"
 	"sun-panel/models"
 	"time"
@@ -51,6 +53,41 @@ func (a *FileApi) UploadImg(c *gin.Context) {
 		}
 		filepath := fmt.Sprintf("%s%s%s", fildDir, fileName, fileExt)
 		c.SaveUploadedFile(f, filepath)
+
+		// 异步双写到云端图床 (若用户开启了双写开关)
+		go func(srcFile string, imgName string, ext string) {
+			m := models.SystemSetting{}
+			val, err := m.Get("cloud_storage_config")
+			if err != nil || val == "" {
+				return
+			}
+			var cfg cloudClient.CloudStorageConfig
+			if err := json.Unmarshal([]byte(val), &cfg); err != nil || !cfg.Enabled {
+				return
+			}
+			data, err := os.ReadFile(srcFile)
+			if err != nil {
+				return
+			}
+			client, err := cloudClient.CreateCloudClient(cfg)
+			if err != nil {
+				return
+			}
+			mime := "image/png"
+			switch ext {
+			case ".jpg", ".jpeg":
+				mime = "image/jpeg"
+			case ".gif":
+				mime = "image/gif"
+			case ".webp":
+				mime = "image/webp"
+			case ".svg":
+				mime = "image/svg+xml"
+			case ".ico":
+				mime = "image/x-icon"
+			}
+			_, _ = client.UploadFile("images/"+imgName, data, mime)
+		}(filepath, fileName+fileExt, fileExt)
 
 		// 像数据库添加记录
 		mFile := models.File{}

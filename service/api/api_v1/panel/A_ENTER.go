@@ -6,4 +6,5 @@ type ApiPanel struct {
 	UsersApi      UsersApi
 	ItemIconGroup ItemIconGroup
 	BackupApi     BackupApi
+	CloudStorageApi CloudStorageApi
 }
