@@ -1,3 +1,37 @@
+# Sun-Panel (集成整站备份与迁移版)
+
+> **本仓库专属版本说明**：
+> 本项目基于 Sun-Panel 开源版 `v1.3.0` 进行功能增强与二次开发，自主集成了**【整站数据全量备份与无缝迁移（ZIP 打包）】**功能，由 GitHub Actions 自动化编译，100% 开源纯净，无任何 PRO 弹窗或限制。
+
+### 🚀 一键部署 (Docker Compose)
+
+在您的 NAS 或服务器创建 `docker-compose.yml`：
+
+```yaml
+version: "3.8"
+
+services:
+  sun-panel:
+    image: ghcr.io/mysecret2022/my-sun-panel:latest
+    container_name: sun-panel
+    restart: always
+    ports:
+      - "3002:3002"
+    volumes:
+      - ./conf:/app/conf
+      - ./database:/app/database
+      - ./uploads:/app/uploads
+      - ./files:/app/files
+```
+
+执行命令一键拉起：
+```bash
+docker compose up -d
+```
+打开浏览器访问：`http://<您的IP>:3002`
+
+---
+
 [[ 简体中文 ]](https://doc.sun-panel.top/zh_cn/) |
 [[ English ]](https://doc.sun-panel.top/)
 

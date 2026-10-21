@@ -1,14 +1,16 @@
-version: "3.2"
+version: "3.8"
 
 services:
   sun-panel:
-    image: 'hslr/sun-panel:latest'
+    # 您的专属纯净版镜像（由 GitHub Actions 自动云端编译发布）
+    image: ghcr.io/mysecret2022/my-sun-panel:latest
     container_name: sun-panel
-    volumes:
-    - ./conf:/app/conf
-    - ./uploads:/app/uploads
-    - ./database:/app/database
-    # - ./runtime:/app/runtime
-    ports:
-    - 3002:3002
     restart: always
+    ports:
+      - "3002:3002"
+    volumes:
+      # 持久化数据与附件挂载
+      - ./conf:/app/conf
+      - ./database:/app/database
+      - ./uploads:/app/uploads
+      - ./files:/app/files
