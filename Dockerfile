@@ -1,5 +1,5 @@
-# Stage 1: Build Frontend
-FROM node:18-alpine AS web_image
+# Stage 1: Build Frontend (使用原生宿主机平台极速构建，产物是与CPU架构无关的纯HTML/JS)
+FROM --platform=$BUILDPLATFORM node:18-alpine AS web_image
 
 WORKDIR /build
 
@@ -14,7 +14,7 @@ COPY . .
 
 RUN pnpm run build-only
 
-# Stage 2: Build Backend
+# Stage 2: Build Backend (针对不同平台自动编译 CGO SQLite)
 FROM golang:1.21-alpine3.18 AS server_image
 
 WORKDIR /build

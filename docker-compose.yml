@@ -1,8 +1,6 @@
-version: "3.8"
-
 services:
   sun-panel:
-    # 您的专属纯净版镜像（由 GitHub Actions 自动云端编译发布）
+    # 您的专属纯净版镜像（同时支持 x86_64 和 ARM64 处理器）
     image: ghcr.io/mysecret2022/my-sun-panel:latest
     container_name: sun-panel
     restart: always
