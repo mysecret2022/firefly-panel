@@ -3,11 +3,12 @@ FROM node:18-alpine AS web_image
 
 WORKDIR /build
 
-RUN npm install pnpm -g
+# 固定使用与项目兼容的 pnpm 8 版本
+RUN npm install -g pnpm@8.15.9
 
 COPY ./package.json ./pnpm-lock.yaml ./
 
-RUN pnpm install --frozen-lockfile || pnpm install
+RUN pnpm install
 
 COPY . .
 
