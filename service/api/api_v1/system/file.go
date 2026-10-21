@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"sun-panel/api/api_v1/common/apiData/commonApiStructs"
@@ -22,6 +23,30 @@ import (
 )
 
 type FileApi struct{}
+
+// 格式化上云文件名 (原始文件名 + 短校验码)
+func getCloudUploadName(fileName, ext, src string) string {
+	baseRaw := strings.TrimSuffix(fileName, ext)
+	baseRaw = strings.TrimSpace(baseRaw)
+	if baseRaw == "" {
+		baseRaw = "image"
+	}
+	reg := regexp.MustCompile(`[\\/:*?"<>|\s]+`)
+	baseClean := reg.ReplaceAllString(baseRaw, "_")
+
+	shortHash := "hash"
+	cleanBase := path.Base(src)
+	cleanBaseNoExt := strings.TrimSuffix(cleanBase, ext)
+	if len(cleanBaseNoExt) >= 6 {
+		shortHash = cleanBaseNoExt[:6]
+	}
+
+	cleanExt := ext
+	if !strings.HasPrefix(cleanExt, ".") {
+		cleanExt = "." + cleanExt
+	}
+	return fmt.Sprintf("%s_%s%s", baseClean, shortHash, cleanExt)
+}
 
 // 获取已启用的云存储客户端
 func getCloudClient() (cloudClient.CloudStorageClient, error) {
@@ -117,7 +142,7 @@ func (a *FileApi) UploadImg(c *gin.Context) {
 			return
 		}
 		_ = uploadLocalFileToCloud(client, srcFile, imgName, ext, fType)
-	}(filepath, fileName+fileExt, fileExt, fileType)
+	}(filepath, getCloudUploadName(f.Filename, fileExt, filepath), fileExt, fileType)
 
 	// 向数据库添加记录
 	mFile := models.File{}
@@ -323,7 +348,7 @@ func (a *FileApi) UploadToCloud(c *gin.Context) {
 
 	successCount := 0
 	for _, f := range files {
-		cleanName := path.Base(f.Src)
+		cleanName := getCloudUploadName(f.FileName, f.Ext, f.Src)
 		if err := uploadLocalFileToCloud(client, f.Src, cleanName, f.Ext, f.FileType); err == nil {
 			global.Db.Model(&models.File{}).Where("id = ?", f.ID).Update("sync_status", 2)
 			successCount++
@@ -415,7 +440,7 @@ func (a *FileApi) AuditAction(c *gin.Context) {
 
 	successCount := 0
 	for _, f := range files {
-		cleanName := path.Base(f.Src)
+		cleanName := getCloudUploadName(f.FileName, f.Ext, f.Src)
 		if err := uploadLocalFileToCloud(client, f.Src, cleanName, f.Ext, f.FileType); err == nil {
 			global.Db.Model(&models.File{}).Where("id = ?", f.ID).Update("sync_status", 2)
 			successCount++

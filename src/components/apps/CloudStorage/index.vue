@@ -551,6 +551,56 @@ async function handleSyncAllImages() {
   }
 }
 
+// 大图预览浮层 (单击放大，再点击任意位置/大图秒退缩小)
+const previewVisible = ref(false)
+const previewImage = ref<CloudFileItem | null>(null)
+
+function openPreview(img: CloudFileItem) {
+  previewImage.value = img
+  previewVisible.value = true
+}
+
+function closePreview() {
+  previewVisible.value = false
+  previewImage.value = null
+}
+
+// 删除单个备份
+function handleDeleteSingleBackup(b: CloudFileItem) {
+  dialog.warning({
+    title: '删除云端加密备份',
+    content: `确定要永久删除备份包「${b.name}」吗？删除后将无法通过该包还原数据。`,
+    positiveText: '确认删除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      backupsLoading.value = true
+      try {
+        const res: any = await deleteCloudImages([b.path])
+        if (res.code === 0) {
+          ms.success('备份包已成功从云端删除')
+          fetchBackups()
+        }
+        else {
+          ms.error(`删除失败: ${res.msg}`)
+        }
+      }
+      catch (error) {
+        ms.error('操作异常')
+      }
+      finally {
+        backupsLoading.value = false
+      }
+    },
+  })
+}
+
+// 下载备份文件
+function handleDownloadBackup(b: CloudFileItem) {
+  if (b.downloadUrl) {
+    window.open(b.downloadUrl, '_blank')
+  }
+}
+
 // Tab 切换监听
 function onTabChange(tab: string) {
   if (tab === 'images')
@@ -570,23 +620,27 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="h-full overflow-y-auto px-4 py-2">
-    <NSpin :show="loading">
-      <NTabs v-model:value="activeTab" type="line" animated @update:value="onTabChange">
+  <div class="h-full flex flex-col overflow-y-auto px-3 py-2 box-border">
+    <NSpin :show="loading" class="h-full flex flex-col flex-1">
+      <NTabs v-model:value="activeTab" type="line" animated class="h-full flex flex-col flex-1" pane-class="h-full flex flex-col flex-1" @update:value="onTabChange">
         <!-- 第 1 页: 云端漫游图床 (默认优先展示) -->
         <NTabPane name="images" tab="🖼️ 云端漫游图床">
-          <NCard size="small" class="mt-2 shadow-sm rounded-lg">
+          <NCard size="small" class="mt-1 shadow-sm rounded-xl">
             <template #header>
-              <div class="flex items-center gap-3">
-                <NTabs v-model:value="cloudCategory" type="segment" size="small" class="w-auto">
-                  <NTabPane name="all" tab="全部" />
-                  <NTabPane name="wallpapers" tab="🌄 壁纸图床" />
-                  <NTabPane name="icons" tab="🎨 应用图床" />
-                </NTabs>
-                <div class="hidden sm:flex items-center text-xs text-gray-400 gap-2 pl-2 border-l border-gray-200 dark:border-zinc-700">
+              <div class="flex flex-col gap-1.5 py-0.5">
+                <!-- 上层: 全部/壁纸图床/应用图床 (往上移 0.5 字符) -->
+                <div class="-mt-1">
+                  <NTabs v-model:value="cloudCategory" type="segment" size="small" class="w-auto">
+                    <NTabPane name="all" tab="全部" />
+                    <NTabPane name="wallpapers" tab="🌄 壁纸图床" />
+                    <NTabPane name="icons" tab="🎨 应用图床" />
+                  </NTabs>
+                </div>
+                <!-- 下层: 仪表盘小胶囊 (在分类正下方，小窗口永不挤压重叠) -->
+                <div class="flex items-center text-xs text-gray-500 dark:text-gray-400 gap-2.5">
                   <span>已漫游: <strong class="text-blue-500 font-semibold">{{ cloudImages.length }}</strong> 张</span>
                   <span>容量: <strong class="text-emerald-500 font-semibold">{{ totalCloudSize }}</strong></span>
-                  <span class="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                  <span class="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                     云端畅通
                   </span>
@@ -595,7 +649,7 @@ onMounted(() => {
             </template>
 
             <template #header-extra>
-              <div class="flex items-center gap-2">
+              <div class="flex flex-wrap items-center gap-2">
                 <NButton size="small" secondary @click="fetchImages">
                   <template #icon>
                     <SvgIcon icon="material-symbols:refresh" />
@@ -640,7 +694,7 @@ onMounted(() => {
               </div>
             </template>
 
-            <NAlert type="info" size="small" class="mb-4">
+            <NAlert type="info" size="small" class="mb-3">
               支持按<strong>壁纸图床</strong>和<strong>应用图床</strong>分类筛选。多选批量删除已开启安全防频次限制限流保护，确保稳妥删除。
             </NAlert>
 
@@ -649,45 +703,46 @@ onMounted(() => {
                 <p>该分类下暂无云端图片</p>
               </div>
 
-              <NGrid v-else cols="2 s:3 m:4" responsive="screen" :x-gap="12" :y-gap="12">
+              <!-- 自适应弹性网格: 随弹窗宽度自增列数平铺成一排 -->
+              <NGrid v-else cols="2 450:3 680:4 900:6 1200:8 1500:10" :x-gap="8" :y-gap="8">
                 <NGridItem v-for="img in filteredCloudImages" :key="img.path">
                   <div
-                    class="relative border rounded-lg p-2 bg-slate-50 dark:bg-zinc-800/60 hover:shadow-md transition"
+                    class="relative border rounded-xl p-1.5 bg-slate-50 dark:bg-zinc-800/80 hover:shadow-md transition-all group overflow-hidden border-gray-200 dark:border-zinc-700"
                     :class="{ 'ring-2 ring-blue-500': selectedCloudPaths.includes(img.path) }"
                   >
-                    <!-- 多选框 -->
-                    <div class="absolute top-2 left-2 z-10 bg-white/80 dark:bg-black/80 rounded p-0.5">
+                    <!-- 大 Checkbox (左上角多选) -->
+                    <div class="absolute top-1.5 left-1.5 z-10 bg-white/90 dark:bg-black/90 rounded-md p-0.5 shadow-sm">
                       <NCheckbox
                         :checked="selectedCloudPaths.includes(img.path)"
-                        size="small"
+                        size="medium"
                         @update:checked="() => toggleSelectCloudImage(img.path)"
                       />
                     </div>
 
-                    <!-- 分类标签 -->
-                    <div class="absolute top-2 right-2 z-10">
-                      <NTag size="tiny" :type="img.path.includes('/wallpapers/') ? 'info' : 'success'" :bordered="false">
-                        {{ img.path.includes('/wallpapers/') ? '壁纸' : '图标' }}
-                      </NTag>
-                    </div>
-
-                    <div class="w-full h-28 flex items-center justify-center bg-zinc-200/50 dark:bg-zinc-900 rounded overflow-hidden">
-                      <NImage
+                    <!-- 纯净缩略图 (已移除覆盖在上面的图标字体Tag，点击全屏放大) -->
+                    <div
+                      class="w-full h-28 flex items-center justify-center bg-zinc-200/50 dark:bg-zinc-900 rounded-lg overflow-hidden cursor-pointer"
+                      @click="openPreview(img)"
+                    >
+                      <img
                         :src="img.downloadUrl"
-                        class="w-full h-full object-cover"
-                        preview-disabled
+                        :alt="img.name"
+                        loading="lazy"
+                        class="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                       />
                     </div>
-                    <div class="mt-2 truncate font-mono text-xs text-slate-700 dark:text-zinc-200" :title="img.name">
+
+                    <!-- 图片文件名与大小 -->
+                    <div class="mt-1.5 px-0.5 truncate font-mono text-xs text-slate-700 dark:text-zinc-200" :title="img.name">
                       {{ img.name }}
                     </div>
-                    <div class="flex items-center justify-between text-xs text-slate-400 mt-2 pt-1 border-t border-gray-100 dark:border-zinc-700">
+                    <div class="flex items-center justify-between text-xs text-slate-400 mt-1 pt-1 border-t border-gray-100 dark:border-zinc-700/60 px-0.5">
                       <span>{{ formatSize(img.size) }}</span>
                       <div class="flex items-center gap-1">
-                        <NButton text type="primary" size="tiny" @click="handleSyncSingleImage(img)">
+                        <NButton text type="primary" size="tiny" @click.stop="handleSyncSingleImage(img)">
                           下载
                         </NButton>
-                        <NButton text type="error" size="tiny" @click="handleDeleteSingleCloudImage(img.path)">
+                        <NButton text type="error" size="tiny" @click.stop="handleDeleteSingleCloudImage(img.path)">
                           删除
                         </NButton>
                       </div>
@@ -990,12 +1045,26 @@ onMounted(() => {
                     </div>
                   </div>
 
-                  <NButton type="warning" size="small" @click="openRestoreModal(b)">
-                    <template #icon>
-                      <SvgIcon icon="material-symbols:settings-backup-restore-rounded" />
-                    </template>
-                    解密还原
-                  </NButton>
+                  <div class="flex items-center gap-2">
+                    <NButton size="small" secondary @click="handleDownloadBackup(b)">
+                      <template #icon>
+                        <SvgIcon icon="material-symbols:download-rounded" />
+                      </template>
+                      下载
+                    </NButton>
+                    <NButton type="warning" size="small" @click="openRestoreModal(b)">
+                      <template #icon>
+                        <SvgIcon icon="material-symbols:settings-backup-restore-rounded" />
+                      </template>
+                      解密还原
+                    </NButton>
+                    <NButton type="error" size="small" secondary @click="handleDeleteSingleBackup(b)">
+                      <template #icon>
+                        <SvgIcon icon="material-symbols:delete-outline" />
+                      </template>
+                      删除
+                    </NButton>
+                  </div>
                 </div>
               </div>
             </NSpin>
@@ -1046,5 +1115,27 @@ onMounted(() => {
         </div>
       </template>
     </NModal>
+
+    <!-- 全屏大图预览浮层 (单击任意位置/大图秒退缩小) -->
+    <div
+      v-if="previewVisible && previewImage"
+      class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-md cursor-zoom-out select-none transition-all duration-200"
+      @click="closePreview"
+    >
+      <div class="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center" @click.stop="closePreview">
+        <img
+          :src="previewImage.downloadUrl"
+          :alt="previewImage.name"
+          class="max-w-[90vw] max-h-[82vh] object-contain rounded-xl shadow-2xl transition-transform duration-200 hover:scale-[1.01]"
+        />
+        <div class="mt-3 flex items-center gap-3 px-4 py-1.5 rounded-full bg-black/60 border border-white/20 text-white text-xs backdrop-blur-lg shadow-lg">
+          <span class="font-medium truncate max-w-[200px]">{{ previewImage.name }}</span>
+          <span class="text-white/40">|</span>
+          <span>{{ formatSize(previewImage.size) }}</span>
+          <span class="text-white/40">|</span>
+          <span class="text-white/80">单击任意处缩小退出</span>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

@@ -73,14 +73,18 @@ function handleChangeLanuage(value: Language) {
         </div>
       </div>
 
-      <div class="login-title  ">
-        <NGradientText :size="30" type="success" class="!font-bold">
-          {{ $t('common.appName') }}
+      <div class="login-title">
+        <NGradientText :size="32" type="success" class="!font-bold tracking-wide">
+          Firefly-panel
         </NGradientText>
       </div>
       <NForm :model="form" label-width="100px" @keydown.enter="handleSubmit">
         <NFormItem>
-          <NInput v-model:value="form.username" :placeholder="$t('login.usernamePlaceholder')">
+          <NInput
+            v-model:value="form.username"
+            :placeholder="form.username ? '' : ($t('login.usernamePlaceholder') || '请输入账号')"
+            clearable
+          >
             <template #prefix>
               <SvgIcon icon="ph:user-bold" />
             </template>
@@ -88,7 +92,13 @@ function handleChangeLanuage(value: Language) {
         </NFormItem>
 
         <NFormItem>
-          <NInput v-model:value="form.password" type="password" :placeholder="$t('login.passwordPlaceholder')">
+          <NInput
+            v-model:value="form.password"
+            type="password"
+            show-password-on="click"
+            :placeholder="form.password ? '' : ($t('login.passwordPlaceholder') || '请输入密码')"
+            clearable
+          >
             <template #prefix>
               <SvgIcon icon="mdi:password-outline" />
             </template>
@@ -116,9 +126,9 @@ function handleChangeLanuage(value: Language) {
           </NButton>
         </div> -->
 
-        <div class="flex flex-col items-center justify-center text-xs text-slate-400 mt-4 space-y-1">
-          <div>初始账号: <strong class="text-slate-600 dark:text-slate-200">admin</strong> &nbsp;|&nbsp; 初始密码: <strong class="text-slate-600 dark:text-slate-200">admin</strong></div>
-          <div>Powered By <a href="https://github.com/mysecret2022/my-sun-panel" target="_blank" class="text-blue-500 hover:underline">Firefly-panel</a></div>
+        <div class="flex flex-col items-center justify-center text-xs text-slate-500 dark:text-slate-300 mt-4 space-y-1">
+          <div>初始账号: <strong class="text-slate-700 dark:text-slate-100 font-mono">admin</strong> &nbsp;|&nbsp; 初始密码: <strong class="text-slate-700 dark:text-slate-100 font-mono">12345678</strong></div>
+          <div>Powered By <a href="https://github.com/mysecret2022/firefly-panel" target="_blank" class="text-emerald-500 hover:underline">Firefly-panel</a></div>
         </div>
       </NForm>
     </NCard>
@@ -132,12 +142,29 @@ function handleChangeLanuage(value: Language) {
         justify-content: center;
         align-items: center;
         height: 100vh;
-        background-color: #f2f6ff;
+        width: 100vw;
+        background: url('@/assets/firefly.webp') no-repeat center center;
+        background-size: cover;
+        position: relative;
+    }
+
+    .login-card {
+        margin: 20px;
+        min-width: 380px;
+        max-width: 450px;
+        border-radius: 24px !important;
+        background: rgba(255, 255, 255, 0.55) !important;
+        backdrop-filter: blur(24px) saturate(180%) !important;
+        -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+        border: 1px solid rgba(255, 255, 255, 0.45) !important;
+        box-shadow: 0 20px 45px rgba(0, 0, 0, 0.18), inset 0 1px 1px rgba(255, 255, 255, 0.6) !important;
     }
 
     /* 夜间模式 */
-    .dark .login-container{
-      background-color: rgb(43, 43, 43);
+    .dark .login-card {
+        background: rgba(20, 20, 26, 0.62) !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        box-shadow: 0 20px 45px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.15) !important;
     }
 
     @media (min-width: 600px) {
@@ -148,11 +175,6 @@ function handleChangeLanuage(value: Language) {
         .login-button {
             width: 100%;
         }
-    }
-
-    .login-card {
-        margin: 20px;
-        min-width:400px;
     }
 
   .login-title{

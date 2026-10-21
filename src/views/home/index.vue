@@ -346,14 +346,14 @@ function handleAddItem(itemIconGroupId?: number) {
         <div class="mx-[auto] w-[80%]">
           <div class="flex mx-[auto] items-center justify-center text-white">
             <div class="logo">
-              <span class="text-2xl md:text-6xl font-bold text-shadow">
+              <span class="text-2xl md:text-6xl font-bold ios27-glass-text select-none">
                 {{ panelState.panelConfig.logoText }}
               </span>
             </div>
-            <div class="divider text-base lg:text-2xl mx-[10px]">
+            <div class="divider text-base lg:text-2xl mx-[12px] ios27-glass-divider select-none">
               |
             </div>
-            <div class="text-shadow">
+            <div class="ios27-glass-text">
               <Clock :hide-second="!panelState.panelConfig.clockShowSecond" />
             </div>
           </div>
@@ -621,6 +621,53 @@ html {
 
 .text-shadow {
   text-shadow: 2px 2px 50px rgb(0, 0, 0);
+}
+
+/* 苹果 iOS 27 超感毛玻璃透光文字 */
+.ios27-glass-text {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.68) 45%, rgba(255, 255, 255, 0.88) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(255, 255, 255, 0.5);
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.28));
+  letter-spacing: -0.02em;
+  transition: all 0.3s ease;
+}
+
+.ios27-glass-divider {
+  color: rgba(255, 255, 255, 0.45);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  font-weight: 200;
+}
+
+/* 苹果 iOS 27 高级悬浮毛玻璃页脚 */
+.footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 1.5rem auto 0 auto;
+  width: fit-content;
+  max-width: 90%;
+  padding: 6px 20px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.18) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16), inset 0 1px 1px rgba(255, 255, 255, 0.4) !important;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.82rem;
+  transition: all 0.3s ease;
+}
+
+.footer:empty {
+  display: none !important;
+}
+
+.dark .footer {
+  background: rgba(20, 20, 25, 0.45) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.15) !important;
 }
 
 .app-icon-text-shadow {
