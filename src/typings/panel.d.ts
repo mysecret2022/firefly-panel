@@ -46,9 +46,12 @@ declare namespace Panel {
         iconTextIconHideTitle?:boolean
         logoText?:string
         logoImageSrc?:string
+        logoFontFamily?:string       // 自定义字体
+        logoColor?:string            // 自定义文字颜色
+        logoGlassEffect?:boolean     // 是否启用毛玻璃质感
         clockShowSecond?:boolean
         clockColor?:string
-        headerOpacity?:number // 顶部 LOGO 与时钟的透明度 (20~100)
+        headerOpacity?:number        // 透明度 (20~100)
         searchBoxShow?:boolean
         searchBoxSearchIcon?:boolean
         marginTop?:number

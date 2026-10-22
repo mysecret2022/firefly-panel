@@ -16,8 +16,11 @@ export function defaultStatePanelConfig(): Panel.panelConfig {
     iconTextIconHideTitle: false,
     logoText: 'Firefly-panel',
     logoImageSrc: '',
+    logoFontFamily: 'system-ui',
+    logoColor: '#ffffff',
+    logoGlassEffect: false, // 默认关闭毛玻璃，呈现清爽普通字形
     clockShowSecond: false,
-    headerOpacity: 85, // 默认 85% 半透明度
+    headerOpacity: 90,
     searchBoxShow: false,
     searchBoxSearchIcon: false,
     marginBottom: 10,

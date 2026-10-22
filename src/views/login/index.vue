@@ -76,10 +76,11 @@ function handleChangeLanuage(value: Language) {
         </div>
       </div>
 
+      <!-- 登录卡片标题：流萤薄荷荧光透光设计 -->
       <div class="login-title">
-        <NGradientText :size="32" type="success" class="!font-bold tracking-wide">
+        <span class="text-3xl font-extrabold tracking-wide firefly-glow-title select-none">
           Firefly-panel
-        </NGradientText>
+        </span>
       </div>
       <NForm :model="form" label-width="100px" @keydown.enter="handleSubmit">
         <NFormItem>
@@ -214,19 +215,27 @@ html:not(.dark) .login-card {
         inset 0 1.5px 2px rgba(255, 255, 255, 0.8) !important;
 }
 
-.login-title {
+  .login-title {
     text-align: center;
-    margin: 20px 0 24px 0;
-}
+    margin: 18px 0 24px 0;
+  }
 
-/* 标题半透明透光渐变 */
-.login-title .n-gradient-text {
-    background: linear-gradient(180deg, #ffffff 0%, rgba(255, 255, 255, 0.72) 100%) !important;
+  /* 方案 1：流萤薄荷青 ➔ 荧光冰绿晶莹渐变 */
+  .firefly-glow-title {
+    background: linear-gradient(135deg, #a7f3d0 0%, #34d399 45%, #64f4ac 100%) !important;
     -webkit-background-clip: text !important;
     -webkit-text-fill-color: transparent !important;
-    text-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
-    filter: drop-shadow(0 2px 8px rgba(99, 242, 201, 0.35));
-}
+    /* 双层光晕：一层流萤夜光辉光 + 一层立体深色投影确保文字锐利 */
+    filter: drop-shadow(0 0 16px rgba(52, 211, 153, 0.55)) drop-shadow(0 2px 10px rgba(0, 0, 0, 0.45));
+    letter-spacing: 0.04em;
+    display: inline-block;
+    transition: filter 0.3s ease;
+  }
+
+  /* 鼠标悬停时微光呼吸增强 */
+  .firefly-glow-title:hover {
+    filter: drop-shadow(0 0 24px rgba(100, 244, 172, 0.8)) drop-shadow(0 2px 10px rgba(0, 0, 0, 0.5));
+  }
 
 /* 玻璃质感输入框 */
 .login-card .n-input {

@@ -77,33 +77,82 @@ function resetPanelConfig() {
 
 <template>
   <div class="bg-slate-200 dark:bg-zinc-900 rounded-[10px] p-[8px] overflow-auto">
-    <NCard style="border-radius:10px" size="small">
-      <div class="text-slate-500 mb-[5px] font-bold">
-        LOGO 与时钟组件
+    <!-- LOGO 与个性化外观设置 -->
+    <NCard style="border-radius:12px" size="small" class="shadow-xs">
+      <div class="text-slate-600 dark:text-zinc-300 mb-3 font-bold text-sm">
+        LOGO 标题外观与排版
       </div>
 
-      <div>
+      <div class="space-y-4 text-xs">
+        <!-- 1. 标题文字内容 -->
         <div>
-          {{ $t('apps.baseSettings.textContent') }}
-        </div>
-        <div class="flex items-center mt-[5px]">
+          <div class="text-slate-500 mb-1">
+            {{ $t('apps.baseSettings.textContent') }}
+          </div>
           <NInput v-model:value="panelState.panelConfig.logoText" type="text" show-count :maxlength="20" placeholder="请输入文字" />
         </div>
-      </div>
 
-      <!-- 顶部 LOGO 与时钟透明度调节滑块 -->
-      <div class="mt-4 pt-3 border-t border-slate-100 dark:border-zinc-800">
-        <div class="flex items-center justify-between text-xs text-slate-500 dark:text-zinc-400 mb-1">
-          <span>LOGO 与时钟透明度:</span>
-          <span class="font-mono font-semibold">{{ panelState.panelConfig.headerOpacity ?? 85 }}%</span>
+        <!-- 2. 预设 10 种免费无版权字体选择 -->
+        <div>
+          <div class="text-slate-500 mb-1">
+            字体样式 (预设 10 款精选开源字体)
+          </div>
+          <NSelect
+            v-model:value="panelState.panelConfig.logoFontFamily"
+            :options="[
+              { label: '系统默认 (苹方 / 微软雅黑)', value: 'system-ui, -apple-system, sans-serif' },
+              { label: '霞鹜文楷 (文艺楷体)', value: '\'LXGW WenKai Screen\', cursive, serif' },
+              { label: '志莽行书 (潇洒行书)', value: '\'Zhi Mang Xing\', cursive' },
+              { label: '思源宋体 (典雅明体)', value: '\'Noto Serif SC\', SimSun, serif' },
+              { label: '马山正 (苍劲毛笔草楷)', value: '\'Ma Shan Zheng\', cursive' },
+              { label: '得意黑 (科技斜黑体)', value: '\'Smiley Sans\', sans-serif' },
+              { label: '经典楷体 (KaiTi)', value: 'STKaiti, KaiTi, serif' },
+              { label: '传统宋体 (SimSun)', value: 'SimSun, Songti SC, serif' },
+              { label: '幼圆体 (圆润亲和)', value: 'YouYuan, \'Roundhaus\', sans-serif' },
+              { label: '思源黑体 (现代无衬线)', value: '\'Noto Sans SC\', sans-serif' },
+            ]"
+            placeholder="选择字体"
+          />
         </div>
-        <NSlider
-          v-model:value="panelState.panelConfig.headerOpacity"
-          :min="20"
-          :max="100"
-          :step="5"
-          :format-tooltip="(v: number) => `${v}%`"
-        />
+
+        <!-- 3. 文字颜色与毛玻璃开关 -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          <div>
+            <div class="text-slate-500 mb-1">
+              文字颜色
+            </div>
+            <NColorPicker
+              v-model:value="panelState.panelConfig.logoColor"
+              :modes="['hex']"
+              :show-alpha="false"
+              size="small"
+            />
+          </div>
+          <div>
+            <div class="text-slate-500 mb-1">
+              iOS 毛玻璃透光特效
+            </div>
+            <div class="flex items-center h-[34px]">
+              <NSwitch v-model:value="panelState.panelConfig.logoGlassEffect" />
+              <span class="ml-2 text-slate-400">{{ panelState.panelConfig.logoGlassEffect ? '已开启透光质感' : '已关闭 (普通字形)' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. 透明度调节滑块 -->
+        <div class="pt-2 border-t border-slate-100 dark:border-zinc-800">
+          <div class="flex items-center justify-between text-slate-500 mb-1">
+            <span>LOGO 与时钟透明度:</span>
+            <span class="font-mono font-semibold">{{ panelState.panelConfig.headerOpacity ?? 90 }}%</span>
+          </div>
+          <NSlider
+            v-model:value="panelState.panelConfig.headerOpacity"
+            :min="20"
+            :max="100"
+            :step="5"
+            :format-tooltip="(v: number) => `${v}%`"
+          />
+        </div>
       </div>
     </NCard>
 
