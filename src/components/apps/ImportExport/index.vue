@@ -327,7 +327,7 @@ async function handleStartImport() {
 
 <template>
   <div class="h-full w-full overflow-y-auto px-4 py-2 box-border">
-    <NTabs v-model:value="activeTab" type="line" animated>
+    <NTabs v-model:value="activeTab" type="line">
       <!-- 全量整站备份与数据迁移 (仅管理员可见) -->
       <NTabPane v-if="authStore.userInfo?.role === 1" name="full-backup" tab="📦 整站数据备份与恢复 (ZIP)">
         <div class="space-y-4 pt-2 pb-6">

@@ -130,7 +130,7 @@ onUnmounted(() => {
   <div>
     <RoundCardModal
       v-model:show="show"
-      style="max-width: 900px;"
+      style="width: 860px; height: 580px; max-width: 92vw; max-height: 88vh;"
       size="small"
     >
       <template #header>

@@ -303,6 +303,15 @@ watch(
           if (!card)
             return
 
+          // 固化外壳基准尺寸，与内部内容完全解耦，防止切换 Tab 或动态增减内容时窗口跳变抖动
+          if (!isMaximized.value) {
+            const rect = card.getBoundingClientRect()
+            if (!card.style.width)
+              card.style.width = `${Math.round(rect.width)}px`
+            if (!card.style.height)
+              card.style.height = `${Math.round(rect.height)}px`
+          }
+
           // 绑定 Header 拖拽与双击
           const header = card.querySelector('.n-card-header') as HTMLElement
           if (header && !header.dataset.dragAttached) {
@@ -410,12 +419,17 @@ onBeforeUnmount(() => {
 </template>
 
 <style>
-/* 1. 最外层弹窗容器：挂载背景色与 Flexbox 纵向布局 */
+/* 1. 最外层弹窗容器：具备显式基准尺寸，与内部内容完全解耦，杜绝内容伸缩导致的抖动 */
 .draggable-resizable-modal {
+  width: 760px;
+  height: 560px;
+  min-width: 420px !important;
+  min-height: 360px !important;
+  max-width: 90vw !important;
+  max-height: 85vh !important;
   display: flex !important;
   flex-direction: column !important;
   box-sizing: border-box !important;
-  min-width: 320px !important; /* 弹窗最小尺寸防御 */
   backdrop-filter: blur(20px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
   background-color: rgba(255, 255, 255, 0.94) !important;
@@ -433,26 +447,26 @@ onBeforeUnmount(() => {
 }
 
 /* 2. 顶部 Header / 底部 Footer 容器锁定固定高度，防止被压缩 */
-.draggable-resizable-modal .n-card-header,
-.draggable-resizable-modal .n-card__footer,
-.draggable-resizable-modal .n-card__action {
+.draggable-resizable-modal > .n-card-header,
+.draggable-resizable-modal > .n-card__footer,
+.draggable-resizable-modal > .n-card__action {
   flex-shrink: 0 !important;
 }
 
 /* 弹窗头部支持折行响应式，避免标题与操作区/标签碰撞挤压 */
-.draggable-resizable-modal .n-card-header {
+.draggable-resizable-modal > .n-card-header {
   flex-wrap: wrap !important;
   gap: 8px !important;
 }
 
-.draggable-resizable-modal .n-card-header__main {
+.draggable-resizable-modal > .n-card-header > .n-card-header__main {
   min-width: 0 !important;
   word-break: break-word !important;
   overflow-wrap: anywhere !important;
 }
 
 /* 3. 中间内容容器移除写死固定高度，改为 flex: 1; min-height: 0; 吸收全部垂直空间，内部独立滚动 */
-.draggable-resizable-modal .n-card__content {
+.draggable-resizable-modal > .n-card__content {
   flex: 1 1 0% !important;
   min-height: 0 !important;
   height: auto !important;
@@ -464,8 +478,8 @@ onBeforeUnmount(() => {
   box-sizing: border-box !important;
 }
 
-/* 4. 清理继承约束：强制直属子内容容器自适应撑满父级剩余空间 */
-.draggable-resizable-modal .n-card__content > * {
+/* 4. 清理继承约束：强制直属子内容容器自适应撑满父级剩余空间（使用 > 严格限定直接子级，禁止污染深层嵌套 NCard） */
+.draggable-resizable-modal > .n-card__content > * {
   flex: 1 1 0% !important;
   min-height: 0 !important;
   height: auto !important;

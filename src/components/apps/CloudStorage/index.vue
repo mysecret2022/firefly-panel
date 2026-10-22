@@ -637,7 +637,7 @@ onMounted(() => {
 <template>
   <div class="h-full flex flex-col overflow-y-auto px-3 py-2 box-border">
     <NSpin :show="loading" class="h-full flex flex-col flex-1">
-      <NTabs v-model:value="activeTab" type="line" animated class="h-full flex flex-col flex-1" pane-class="h-full flex flex-col flex-1" @update:value="onTabChange">
+      <NTabs v-model:value="activeTab" type="line" class="h-full flex flex-col flex-1 min-h-0" pane-class="h-full flex flex-col flex-1 min-h-0" @update:value="onTabChange">
         <!-- 第 1 页: 云端漫游图床 (默认优先展示) -->
         <NTabPane name="images" tab="🖼️ 云端漫游图床" class="h-full flex flex-col flex-1 min-h-0">
           <NCard size="small" class="mt-1 shadow-sm rounded-xl flex-1 min-h-0 flex flex-col h-full" content-style="flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 0.5rem; overflow: hidden;">
@@ -872,44 +872,45 @@ onMounted(() => {
         </NTabPane>
 
         <!-- 第 3 页: 存储配置 (还原为最初设计) -->
-        <NTabPane name="config" tab="⚙️ 存储配置">
-          <NCard title="云存储引擎配置" size="small" class="mt-2 shadow-sm rounded-lg">
-            <template #header-extra>
-              <NTag v-if="repoCheckResult.tested" :type="repoCheckResult.isPrivate ? 'success' : 'warning'" round size="small">
-                {{ repoCheckResult.isPrivate ? '私有安全仓库 (Private)' : '公开仓库 (Public - 需加密)' }}
-              </NTag>
-              <NTag v-else type="default" round size="small">
-                未测试连通性
-              </NTag>
-            </template>
+        <NTabPane name="config" tab="⚙️ 存储配置" class="h-full flex flex-col flex-1 min-h-0">
+          <div class="cloud-tab-scroll-body flex-1 min-h-0 overflow-y-auto pr-1">
+            <NCard title="云存储引擎配置" size="small" class="mt-1 shadow-sm rounded-lg" content-style="display: flex; flex-direction: column; justify-content: flex-start; gap: 16px;">
+              <template #header-extra>
+                <NTag v-if="repoCheckResult.tested" :type="repoCheckResult.isPrivate ? 'success' : 'warning'" round size="small">
+                  {{ repoCheckResult.isPrivate ? '私有安全仓库 (Private)' : '公开仓库 (Public - 需加密)' }}
+                </NTag>
+                <NTag v-else type="default" round size="small">
+                  未测试连通性
+                </NTag>
+              </template>
 
-            <!-- 核心双写开关 (紧凑流式排版 + 气泡提示) -->
-            <div class="mb-3 px-3 py-2 bg-slate-50/90 dark:bg-zinc-800/80 rounded-lg flex items-center justify-between gap-3 border border-slate-200/80 dark:border-zinc-700/60">
-              <div class="min-w-0 flex-1">
-                <!-- 第一行: 图标 + 标题 + 默认关闭状态 + Tooltip 提示 -->
-                <div class="flex items-center gap-1.5 flex-wrap">
-                  <SvgIcon icon="material-symbols:cloud-sync-outline" class="text-lg text-primary shrink-0" />
-                  <span class="text-sm font-medium text-slate-800 dark:text-zinc-100">启用本地 + 云端双写机制</span>
-                  <span class="text-xs text-slate-400 dark:text-zinc-500">(默认关闭)</span>
-                  <NTooltip trigger="hover">
-                    <template #trigger>
-                      <span class="inline-flex items-center text-slate-400 hover:text-primary cursor-pointer text-xs transition-colors">
-                        <SvgIcon icon="material-symbols:help-outline" class="text-sm" />
-                      </span>
-                    </template>
-                    开启后，本地上传的所有壁纸与图标均会自动向云端仓库备份镜像；更换设备或新部署时可随时无损漫游恢复。
-                  </NTooltip>
+              <!-- 核心双写开关 (紧凑流式排版 + 气泡提示 + 锁定自适应无拉伸) -->
+              <div class="dual-write-setting-item px-3 py-2 bg-slate-50/90 dark:bg-zinc-800/80 rounded-lg border border-slate-200/80 dark:border-zinc-700/60">
+                <div class="min-w-0 flex-1">
+                  <!-- 第一行: 图标 + 标题 + 默认关闭状态 + Tooltip 提示 -->
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <SvgIcon icon="material-symbols:cloud-sync-outline" class="text-lg text-primary shrink-0" />
+                    <span class="text-sm font-medium text-slate-800 dark:text-zinc-100">启用本地 + 云端双写机制</span>
+                    <span class="text-xs text-slate-400 dark:text-zinc-500">(默认关闭)</span>
+                    <NTooltip trigger="hover">
+                      <template #trigger>
+                        <span class="inline-flex items-center text-slate-400 hover:text-primary cursor-pointer text-xs transition-colors">
+                          <SvgIcon icon="material-symbols:help-outline" class="text-sm" />
+                        </span>
+                      </template>
+                      开启后，本地上传的所有壁纸与图标均会自动向云端仓库备份镜像；更换设备或新部署时可随时无损漫游恢复。
+                    </NTooltip>
+                  </div>
+                  <!-- 第二行: 紧凑辅助说明文案，消除过多上下空白 -->
+                  <div class="dual-write-desc text-xs text-slate-500 dark:text-zinc-400 leading-snug">
+                    开启后，上传图标或壁纸时自动同步一份至云端备份，换新设备时可一键漫游恢复。
+                  </div>
                 </div>
-                <!-- 第二行: 紧凑辅助说明文案，消除过多上下空白 -->
-                <div class="text-xs text-slate-500 dark:text-zinc-400 mt-0.5 leading-snug">
-                  开启后，上传图标或壁纸时自动同步一份至云端备份，换新设备时可一键漫游恢复。
-                </div>
+                <NSwitch v-model:value="form.enabled" class="shrink-0" />
               </div>
-              <NSwitch v-model:value="form.enabled" class="shrink-0" />
-            </div>
 
-            <!-- 驱动选择 -->
-            <NForm label-placement="left" label-width="130" size="small">
+              <!-- 驱动选择 -->
+              <NForm label-placement="left" label-width="130" size="small" class="cloud-config-form">
               <NFormItem label="云存储平台">
                 <NRadioGroup v-model:value="form.type">
                   <NRadio value="github">
@@ -1018,11 +1019,13 @@ onMounted(() => {
               </div>
             </NForm>
           </NCard>
+          </div>
         </NTabPane>
 
         <!-- 第 4 页: 云端加密备份与恢复 -->
-        <NTabPane name="backups" tab="🔒 云端加密备份中心">
-          <NCard title="安全加密全站备份" size="small" class="mt-2 shadow-sm rounded-lg">
+        <NTabPane name="backups" tab="🔒 云端加密备份中心" class="h-full flex flex-col flex-1 min-h-0">
+          <div class="cloud-tab-scroll-body flex-1 min-h-0 overflow-y-auto pr-1">
+          <NCard title="安全加密全站备份" size="small" class="mt-1 shadow-sm rounded-lg" content-style="display: flex; flex-direction: column; justify-content: flex-start; gap: 16px;">
             <NAlert type="warning" size="small" class="mb-4">
               <strong>隐私安全保障机制：</strong>上传云端备份前<strong>必须手动输入加密密码</strong>。备份文件离开本地前均经过行业级 <strong>AES-256-GCM</strong> 算法强加密，即使存储在公开仓库也绝无数据泄漏风险。
             </NAlert>
@@ -1119,6 +1122,7 @@ onMounted(() => {
               </div>
             </NSpin>
           </NCard>
+          </div>
         </NTabPane>
       </NTabs>
     </NSpin>
@@ -1208,5 +1212,56 @@ onMounted(() => {
   word-break: break-word;
   overflow-wrap: anywhere;
   white-space: normal;
+}
+
+/* 锁定双写配置项尺寸自适应，禁止纵向拉伸与拉开巨大空白 */
+.dual-write-setting-item {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  margin: 0 !important;
+  padding: 8px 12px !important;
+  flex-grow: 0 !important;
+  flex-shrink: 0 !important;
+  height: auto !important;
+  align-self: auto !important;
+}
+
+.dual-write-desc {
+  margin-top: 4px !important;
+  line-height: 1.4 !important;
+}
+
+.cloud-config-form {
+  flex-grow: 0 !important;
+  flex-shrink: 0 !important;
+  height: auto !important;
+}
+
+/* 统一父级与滚动容器纵向对齐策略：多余留白留在底部，禁止 space-between 分散拉扯 */
+.cloud-tab-scroll-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 16px;
+}
+
+/* 确保内部 Tab 面板高度吸收与无跳变平滑切换 */
+:deep(.n-tabs-pane-wrapper) {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+:deep(.n-tab-pane) {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
 }
 </style>

@@ -2,11 +2,11 @@
 import { NDivider, NGradientText, NTag } from 'naive-ui'
 import srcSvglogo from '@/assets/about_logo.png'
 
-const frontVersion = '1.0.10'
+const frontVersion = '1.0.11'
 </script>
 
 <template>
-  <div class="pt-6 px-4 flex flex-col items-center justify-center">
+  <div class="h-full flex flex-col items-center justify-center overflow-y-auto pt-6 px-4">
     <!-- 头部 Logo 与应用名称 -->
     <div class="flex flex-col items-center justify-center">
       <img :src="srcSvglogo" width="80" height="80" alt="Logo">
@@ -44,7 +44,7 @@ const frontVersion = '1.0.10'
 
       <div class="mt-4">
         <NTag :bordered="false" size="small" type="success">
-          Firefly-panel v1.0.10
+          Firefly-panel v1.0.11
         </NTag>
       </div>
     </div>
