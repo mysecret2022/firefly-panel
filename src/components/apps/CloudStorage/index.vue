@@ -23,6 +23,7 @@ import {
   NTabPane,
   NTabs,
   NTag,
+  NTooltip,
   useDialog,
   useMessage,
 } from 'naive-ui'
@@ -882,18 +883,29 @@ onMounted(() => {
               </NTag>
             </template>
 
-            <!-- 核心双写开关 -->
-            <div class="mb-4 p-3 bg-slate-50 dark:bg-zinc-800 rounded-lg flex items-center justify-between border border-slate-200 dark:border-zinc-700">
-              <div>
-                <div class="font-medium text-slate-800 dark:text-zinc-100 flex items-center gap-2">
-                  <SvgIcon icon="material-symbols:cloud-sync-outline" class="text-xl text-primary" />
-                  <span>启用本地 + 云端双写机制 (默认关闭)</span>
+            <!-- 核心双写开关 (紧凑流式排版 + 气泡提示) -->
+            <div class="mb-3 px-3 py-2 bg-slate-50/90 dark:bg-zinc-800/80 rounded-lg flex items-center justify-between gap-3 border border-slate-200/80 dark:border-zinc-700/60">
+              <div class="min-w-0 flex-1">
+                <!-- 第一行: 图标 + 标题 + 默认关闭状态 + Tooltip 提示 -->
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <SvgIcon icon="material-symbols:cloud-sync-outline" class="text-lg text-primary shrink-0" />
+                  <span class="text-sm font-medium text-slate-800 dark:text-zinc-100">启用本地 + 云端双写机制</span>
+                  <span class="text-xs text-slate-400 dark:text-zinc-500">(默认关闭)</span>
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <span class="inline-flex items-center text-slate-400 hover:text-primary cursor-pointer text-xs transition-colors">
+                        <SvgIcon icon="material-symbols:help-outline" class="text-sm" />
+                      </span>
+                    </template>
+                    开启后，本地上传的所有壁纸与图标均会自动向云端仓库备份镜像；更换设备或新部署时可随时无损漫游恢复。
+                  </NTooltip>
                 </div>
-                <div class="text-xs text-slate-500 dark:text-zinc-400 mt-1">
-                  开启后，上传图标或壁纸时系统将自动上传一份到云端备份存储；换新 NAS 或设备时可随时一键漫游恢复。
+                <!-- 第二行: 紧凑辅助说明文案，消除过多上下空白 -->
+                <div class="text-xs text-slate-500 dark:text-zinc-400 mt-0.5 leading-snug">
+                  开启后，上传图标或壁纸时自动同步一份至云端备份，换新设备时可一键漫游恢复。
                 </div>
               </div>
-              <NSwitch v-model:value="form.enabled" />
+              <NSwitch v-model:value="form.enabled" class="shrink-0" />
             </div>
 
             <!-- 驱动选择 -->
