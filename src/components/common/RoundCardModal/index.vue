@@ -147,9 +147,9 @@ function onResizeMouseMove(e: MouseEvent) {
   if (!card)
     return
 
-  // 左上角严格固定在 (fixedLeft, fixedTop)，最小限制 580x480
-  const newWidth = Math.max(580, Math.min(window.innerWidth - fixedLeft - 10, e.clientX - fixedLeft))
-  const newHeight = Math.max(480, Math.min(window.innerHeight - fixedTop - 10, e.clientY - fixedTop))
+  // 左上角严格固定在 (fixedLeft, fixedTop)，最小尺寸防御 320x300
+  const newWidth = Math.max(320, Math.min(window.innerWidth - fixedLeft - 10, e.clientX - fixedLeft))
+  const newHeight = Math.max(300, Math.min(window.innerHeight - fixedTop - 10, e.clientY - fixedTop))
 
   card.style.width = `${newWidth}px`
   card.style.height = `${newHeight}px`
@@ -306,7 +306,7 @@ onBeforeUnmount(() => {
     preset="card"
     :size="size"
     v-bind="bindAttrs"
-    style="border-radius: 1.1rem; min-width: 580px; min-height: 480px;"
+    style="border-radius: 1.1rem; min-width: 320px; min-height: 300px;"
     :style="$parent"
     :title="title"
   >
@@ -335,6 +335,7 @@ onBeforeUnmount(() => {
   display: flex !important;
   flex-direction: column !important;
   box-sizing: border-box !important;
+  min-width: 320px !important; /* 弹窗最小尺寸防御 */
   backdrop-filter: blur(20px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
   background-color: rgba(255, 255, 255, 0.94) !important;
@@ -356,6 +357,18 @@ onBeforeUnmount(() => {
 .draggable-resizable-modal .n-card__footer,
 .draggable-resizable-modal .n-card__action {
   flex-shrink: 0 !important;
+}
+
+/* 弹窗头部支持折行响应式，避免标题与操作区/标签碰撞挤压 */
+.draggable-resizable-modal .n-card-header {
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+}
+
+.draggable-resizable-modal .n-card-header__main {
+  min-width: 0 !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
 }
 
 /* 3. 中间内容容器移除写死固定高度，改为 flex: 1; min-height: 0; 吸收全部垂直空间，内部独立滚动 */

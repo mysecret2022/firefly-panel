@@ -641,69 +641,73 @@ onMounted(() => {
         <NTabPane name="images" tab="🖼️ 云端漫游图床" class="h-full flex flex-col flex-1 min-h-0">
           <NCard size="small" class="mt-1 shadow-sm rounded-xl flex-1 min-h-0 flex flex-col h-full" content-style="flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 0.5rem; overflow: hidden;">
             <template #header>
-              <div class="flex items-center py-0.5">
-                <!-- 上层/左侧: 全部/壁纸图床/应用图床 -->
-                <NTabs v-model:value="cloudCategory" type="segment" size="small" class="w-auto">
-                  <NTabPane name="all" tab="全部" />
-                  <NTabPane name="wallpapers" tab="🌄 壁纸图床" />
-                  <NTabPane name="icons" tab="🎨 应用图床" />
-                </NTabs>
-              </div>
-            </template>
-
-            <template #header-extra>
-              <div class="flex items-center gap-2 whitespace-nowrap overflow-x-auto py-0.5">
-                <!-- 已漫游与容量小状态 (与刷新、全选等按钮排布在同一行) -->
-                <div class="hidden md:flex items-center text-xs text-gray-500 dark:text-gray-400 gap-2 px-2 py-1 rounded-md bg-gray-100/70 dark:bg-zinc-800/60 border border-gray-200/60 dark:border-zinc-700/50">
-                  <span>已漫游: <strong class="text-blue-500 font-semibold">{{ cloudImages.length }}</strong> 张</span>
-                  <span>容量: <strong class="text-emerald-500 font-semibold">{{ totalCloudSize }}</strong></span>
-                  <span class="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    云端畅通
-                  </span>
+              <div class="cloud-toolbar-container w-full flex flex-wrap items-center justify-between gap-2 py-0.5">
+                <!-- 标签区域: 全部/壁纸图床/应用图床 -->
+                <div class="flex items-center shrink-0">
+                  <NTabs v-model:value="cloudCategory" type="segment" size="small" class="w-auto">
+                    <NTabPane name="all" tab="全部" />
+                    <NTabPane name="wallpapers" tab="🌄 壁纸图床" />
+                    <NTabPane name="icons" tab="🎨 应用图床" />
+                  </NTabs>
                 </div>
 
-                <NButton size="small" secondary @click="fetchImages">
-                  <template #icon>
-                    <SvgIcon icon="material-symbols:refresh" />
-                  </template>
-                  刷新
-                </NButton>
-                <NButton size="small" secondary @click="handleSelectAllCloudImages">
-                  {{ selectedCloudPaths.length === filteredCloudImages.length && filteredCloudImages.length > 0 ? '取消全选' : '全选当前' }}
-                </NButton>
-                <NButton
-                  v-if="selectedCloudPaths.length > 0"
-                  size="small"
-                  type="error"
-                  secondary
-                  @click="handleDeleteSelectedCloudImages"
-                >
-                  <template #icon>
-                    <SvgIcon icon="material-symbols:delete" />
-                  </template>
-                  批量删除 ({{ selectedCloudPaths.length }})
-                </NButton>
-                <NButton
-                  v-if="cloudImages.length > 0"
-                  size="small"
-                  quaternary
-                  type="error"
-                  @click="handleClearAllCloudImages"
-                >
-                  清空云端
-                </NButton>
-                <NPopconfirm @positive-click="handleSyncAllImages">
-                  <template #trigger>
-                    <NButton size="small" type="primary" :loading="syncAllLoading">
+                <!-- 状态文字与操作按钮区：宽度不足时自动折行平滑移动到标签正下方 -->
+                <div class="cloud-toolbar-actions flex flex-wrap items-center gap-2">
+                  <!-- 状态徽章文字：换行与边界保护 -->
+                  <div class="cloud-status-badge flex items-center text-xs text-gray-500 dark:text-gray-400 gap-2 px-2 py-1 rounded-md bg-gray-100/70 dark:bg-zinc-800/60 border border-gray-200/60 dark:border-zinc-700/50">
+                    <span>已漫游: <strong class="text-blue-500 font-semibold">{{ cloudImages.length }}</strong> 张</span>
+                    <span>容量: <strong class="text-emerald-500 font-semibold">{{ totalCloudSize }}</strong></span>
+                    <span class="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      云端畅通
+                    </span>
+                  </div>
+
+                  <!-- 按钮组 -->
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <NButton size="small" secondary @click="fetchImages">
                       <template #icon>
-                        <SvgIcon icon="material-symbols:cloud-download" />
+                        <SvgIcon icon="material-symbols:refresh" />
                       </template>
-                      一键全部拉取到本地
+                      刷新
                     </NButton>
-                  </template>
-                  确认将云端存储中的全部图片一次性下载并同步到本地存储吗？
-                </NPopconfirm>
+                    <NButton size="small" secondary @click="handleSelectAllCloudImages">
+                      {{ selectedCloudPaths.length === filteredCloudImages.length && filteredCloudImages.length > 0 ? '取消全选' : '全选当前' }}
+                    </NButton>
+                    <NButton
+                      v-if="selectedCloudPaths.length > 0"
+                      size="small"
+                      type="error"
+                      secondary
+                      @click="handleDeleteSelectedCloudImages"
+                    >
+                      <template #icon>
+                        <SvgIcon icon="material-symbols:delete" />
+                      </template>
+                      批量删除 ({{ selectedCloudPaths.length }})
+                    </NButton>
+                    <NButton
+                      v-if="cloudImages.length > 0"
+                      size="small"
+                      quaternary
+                      type="error"
+                      @click="handleClearAllCloudImages"
+                    >
+                      清空云端
+                    </NButton>
+                    <NPopconfirm @positive-click="handleSyncAllImages">
+                      <template #trigger>
+                        <NButton size="small" type="primary" :loading="syncAllLoading">
+                          <template #icon>
+                            <SvgIcon icon="material-symbols:cloud-download" />
+                          </template>
+                          一键全部拉取到本地
+                        </NButton>
+                      </template>
+                      确认将云端存储中的全部图片一次性下载并同步到本地存储吗？
+                    </NPopconfirm>
+                  </div>
+                </div>
               </div>
             </template>
 
@@ -1173,3 +1177,24 @@ onMounted(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+:deep(.n-card-header) {
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  padding: 0.5rem 0.75rem !important;
+}
+
+:deep(.n-card-header__main) {
+  flex: 1 1 100% !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+/* 状态徽章文字与通用文本换行与边界保护 */
+.cloud-status-badge {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+</style>
