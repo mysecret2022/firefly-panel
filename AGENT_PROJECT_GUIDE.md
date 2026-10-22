@@ -105,8 +105,12 @@ go build -o sun-panel --ldflags="-X sun-panel/global.RUNCODE=release" main.go
 
 ### 多架构 Docker 镜像
 基于 GitHub Actions 自动构建并推送到 GitHub Container Registry (GHCR)：
-- 镜像仓库: `ghcr.io/mysecret2022/my-sun-panel:1.0.2` & `latest`
+- 镜像仓库: `ghcr.io/mysecret2022/firefly-panel:dev`、`:latest` & `1.0.2`
 - 架构支持: `linux/amd64`, `linux/arm64`
+
+### 智能体构建准则与节奏约定 (Agent Build Workflow)
+- **仅指令触发构建**：平时响应修改代码、修复 Bug 时，仅在本地完成语法与前后端双重编译校验。**绝对不要在每个小修改后就擅自触发镜像构建**。
+- **构建启动时机**：**必须且仅当用户明确说出“开始实验构建”（或“开始构建”）时，才执行推送并拉起 dev 实验镜像的打包构建**。
 
 ---
 
