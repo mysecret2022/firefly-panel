@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import type { UploadFileInfo } from 'naive-ui'
 import {
   NAlert,
@@ -8,6 +8,8 @@ import {
   NCheckbox,
   NCheckboxGroup,
   NDivider,
+  NInput,
+  NSelect,
   NSpace,
   NTabPane,
   NTabs,
@@ -22,6 +24,8 @@ import { get as getAbout } from '@/api/system/about'
 import { edit as addGroup, getList as getGroupList } from '@/api/panel/itemIconGroup'
 import { addMultiple as addMultipleIcons, getListByGroupId } from '@/api/panel/itemIcon'
 import { exportBackup, restoreBackup } from '@/api/panel/backup'
+import { listCloudBackups, restoreEncryptedBackup, testCloudConnection } from '@/api/panel/cloudStorage'
+import type { CloudFileItem } from '@/api/panel/cloudStorage'
 import { t } from '@/locales'
 import { useAuthStore } from '@/store'
 
@@ -109,6 +113,152 @@ function handleRestoreFileChange(options: { file: UploadFileInfo; fileList: Arra
     },
   })
 }
+
+// 3. 从云端加密备份恢复 (云端漫游还原)
+const cloudBackupList = ref<CloudFileItem[]>([])
+const selectedCloudBackup = ref<string | null>(null)
+const cloudDecryptPassword = ref('')
+const cloudBackupLoading = ref(false)
+const cloudRestoreLoading = ref(false)
+const cloudTested = ref(false)
+const cloudConnected = ref(false)
+const cloudRestoreStepText = ref('')
+
+function formatSize(bytes: number) {
+  if (!bytes || bytes === 0)
+    return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return `${(bytes / k ** i).toFixed(1)} ${sizes[i]}`
+}
+
+const cloudBackupOptions = computed(() => {
+  if (cloudBackupList.value.length === 0) {
+    return [
+      {
+        label: cloudConnected.value ? '未检测到有效云端快照' : '未检测到有效云端快照（请先刷新检测）',
+        value: '',
+        disabled: true,
+      },
+    ]
+  }
+  return cloudBackupList.value.map(item => ({
+    label: `${item.name} (${formatSize(item.size)}${item.updatedAt ? ` · ${item.updatedAt}` : ''})`,
+    value: item.name,
+  }))
+})
+
+// 测试连通性并获取云端备份快照列表
+async function fetchCloudBackups(showFeedback = false) {
+  cloudBackupLoading.value = true
+  try {
+    const testRes: any = await testCloudConnection()
+    cloudConnected.value = testRes.code === 0
+    cloudTested.value = true
+
+    if (testRes.code === 0) {
+      const res: any = await listCloudBackups()
+      if (res.code === 0 && Array.isArray(res.data)) {
+        cloudBackupList.value = res.data
+        if (res.data.length > 0) {
+          // 默认选中第一个（最新快照）
+          selectedCloudBackup.value = res.data[0].name
+        }
+        else {
+          selectedCloudBackup.value = null
+        }
+        if (showFeedback)
+          ms.success(`云端存储已连通，获取到 ${res.data.length} 个快照文件`)
+      }
+      else {
+        cloudBackupList.value = []
+        selectedCloudBackup.value = null
+        if (showFeedback)
+          ms.warning('云端已连接，但未检测到有效备份快照')
+      }
+    }
+    else {
+      cloudBackupList.value = []
+      selectedCloudBackup.value = null
+      if (showFeedback)
+        ms.error(`云端连通失败: ${testRes.msg || '无法连接至配置的云存储'}`)
+    }
+  }
+  catch (err: any) {
+    cloudConnected.value = false
+    cloudTested.value = true
+    cloudBackupList.value = []
+    selectedCloudBackup.value = null
+    if (showFeedback)
+      ms.error(`检测云端异常: ${err.message || '网络连接超时'}`)
+  }
+  finally {
+    cloudBackupLoading.value = false
+  }
+}
+
+// 执行云端加密还原
+function handleCloudRestore() {
+  if (!selectedCloudBackup.value) {
+    ms.warning('请先选择需要还原的云端备份快照')
+    return
+  }
+  if (!cloudDecryptPassword.value.trim()) {
+    ms.warning('请输入 AES-256 解密密码')
+    return
+  }
+
+  dialog.warning({
+    title: '危险操作：确认还原云端加密数据？',
+    content: '还原操作将解密并全量覆盖当前站点的所有本地数据与配置，过程不可逆，是否继续？',
+    positiveText: '确认全量覆盖还原',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      cloudRestoreLoading.value = true
+      cloudRestoreStepText.value = '正在从云端拉取加密快照文件...'
+
+      const stepTimer = setTimeout(() => {
+        if (cloudRestoreLoading.value)
+          cloudRestoreStepText.value = '正在进行 AES-256 校验与解密...'
+      }, 1200)
+
+      try {
+        const res: any = await restoreEncryptedBackup(selectedCloudBackup.value!, cloudDecryptPassword.value.trim())
+        clearTimeout(stepTimer)
+        if (res.code === 0) {
+          cloudRestoreStepText.value = '正在写入更新数据库并刷新生效...'
+          ms.success(res.data?.message || '解密还原成功！数据已更新，页面即将自动刷新...')
+          setTimeout(() => {
+            window.location.reload()
+          }, 1500)
+        }
+        else {
+          cloudRestoreStepText.value = ''
+          ms.error(res.msg || '解密失败：密码错误或备份文件损坏')
+        }
+      }
+      catch (err: any) {
+        clearTimeout(stepTimer)
+        cloudRestoreStepText.value = ''
+        ms.error(`还原异常: ${err.message || '网络连接超时或解密失败'}`)
+      }
+      finally {
+        cloudRestoreLoading.value = false
+      }
+    },
+  })
+}
+
+onMounted(() => {
+  if (authStore.userInfo?.role === 1)
+    fetchCloudBackups(false)
+})
+
+watch(activeTab, (tab) => {
+  if (tab === 'full-backup' && authStore.userInfo?.role === 1 && !cloudTested.value)
+    fetchCloudBackups(false)
+})
 
 // 导入图标 (JSON)
 async function importIcons(): Promise<string | null> {
@@ -314,6 +464,93 @@ async function handleStartImport() {
                     上传并还原数据 (.zip)
                   </NButton>
                 </NUpload>
+              </div>
+            </div>
+          </NCard>
+
+          <!-- 3. 从云端加密备份恢复 (云端漫游还原) -->
+          <NCard title="3. 恢复云端加密数据 (云端漫游还原)" size="small" :bordered="true" class="rounded-xl shadow-xs">
+            <div class="space-y-3">
+              <div class="text-gray-500 text-xs leading-relaxed">
+                从云端存储同步加密备份快照。此操作需使用“云存储与漫游”模块配置的 AES-256 密钥进行本地解密并覆盖还原。
+              </div>
+
+              <!-- 表单排版: 快照选择 + 密码输入 + 状态展示 (紧凑且规整) -->
+              <div class="p-3 bg-slate-50/80 dark:bg-zinc-800/60 rounded-lg border border-slate-200/70 dark:border-zinc-700/60 space-y-3">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <!-- 快照版本选择 -->
+                  <div>
+                    <div class="text-xs font-medium text-slate-700 dark:text-zinc-200 mb-1 flex items-center justify-between">
+                      <span>云端备份快照 (Snapshot)</span>
+                      <NButton text type="primary" size="tiny" :loading="cloudBackupLoading" @click="() => fetchCloudBackups(true)">
+                        <template #icon>
+                          <SvgIcon icon="material-symbols:refresh" />
+                        </template>
+                        测试连通性 / 刷新快照列表
+                      </NButton>
+                    </div>
+                    <NSelect
+                      v-model:value="selectedCloudBackup"
+                      size="small"
+                      :options="cloudBackupOptions"
+                      :loading="cloudBackupLoading"
+                      :disabled="cloudRestoreLoading || cloudBackupList.length === 0"
+                      placeholder="请选择云端备份快照"
+                    />
+                  </div>
+
+                  <!-- AES-256 解密密码输入框 -->
+                  <div>
+                    <div class="text-xs font-medium text-slate-700 dark:text-zinc-200 mb-1 flex items-center justify-between">
+                      <span>AES-256 解密密码</span>
+                      <span class="text-[11px] text-slate-400">密钥用于内存解密验证</span>
+                    </div>
+                    <NInput
+                      v-model:value="cloudDecryptPassword"
+                      type="password"
+                      size="small"
+                      show-password-on="click"
+                      :disabled="cloudRestoreLoading"
+                      placeholder="请输入云端备份对应的加密密码"
+                      autocomplete="new-password"
+                    />
+                  </div>
+                </div>
+
+                <!-- 底部操作与进度反馈 -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-200/60 dark:border-zinc-700/50">
+                  <div class="text-xs text-slate-500 dark:text-zinc-400 flex items-center gap-1.5">
+                    <span v-if="cloudRestoreStepText" class="text-amber-500 flex items-center gap-1 font-medium">
+                      <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                      {{ cloudRestoreStepText }}
+                    </span>
+                    <span v-else-if="cloudBackupList.length > 0" class="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                      已检测到 {{ cloudBackupList.length }} 个有效云端备份快照
+                    </span>
+                    <span v-else-if="cloudTested">
+                      未检测到有效云端快照（请在“云存储与漫游”中生成备份或刷新连通性）
+                    </span>
+                    <span v-else>
+                      点击右上角可测试连通性并拉取最新云端快照
+                    </span>
+                  </div>
+
+                  <div class="flex items-center gap-2 shrink-0">
+                    <NButton
+                      type="warning"
+                      size="medium"
+                      :loading="cloudRestoreLoading"
+                      :disabled="!selectedCloudBackup || cloudBackupList.length === 0"
+                      @click="handleCloudRestore"
+                    >
+                      <template #icon>
+                        <SvgIcon icon="material-symbols:cloud-download" />
+                      </template>
+                      拉取并解密还原
+                    </NButton>
+                  </div>
+                </div>
               </div>
             </div>
           </NCard>

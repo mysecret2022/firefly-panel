@@ -273,7 +273,7 @@ func (a *CloudStorageApi) RestoreEncryptedBackup(c *gin.Context) {
 	// 2. 解密
 	zipBytes, err := cryptoTool.DecryptAES256GCM(encBytes, req.Password)
 	if err != nil {
-		apiReturn.Error(c, "解密失败，密码错误或备份文件已被篡改损坏")
+		apiReturn.Error(c, "解密失败：密码错误或备份文件损坏")
 		return
 	}
 
