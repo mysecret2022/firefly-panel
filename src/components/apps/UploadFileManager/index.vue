@@ -62,6 +62,20 @@ const moveModalVisible = ref(false)
 const moveTargetIds = ref<number[]>([])
 const targetCategory = ref<number>(1)
 
+// 全屏极速预览状态 (单击放大，再点击任意处缩小退出)
+const previewVisible = ref(false)
+const previewItem = ref<FileItem | null>(null)
+
+function openPreview(item: FileItem) {
+  previewItem.value = item
+  previewVisible.value = true
+}
+
+function closePreview() {
+  previewVisible.value = false
+  previewItem.value = null
+}
+
 // 动态可调排布列数
 const customGridCols = ref<string>('auto')
 const currentGridCols = computed(() => {
@@ -505,16 +519,17 @@ onMounted(() => {
                 </NTag>
               </div>
 
-              <!-- 图片预览区域 (使用 Naive UI 原生 NImage，支持滚轮/工具栏自由放大缩小旋转与全屏展示) -->
+              <!-- 图片展示区域 (点击即可全屏放大预览) -->
               <template #cover>
-                <div class="h-32 w-full bg-slate-100/70 dark:bg-zinc-900/70 flex items-center justify-center p-1.5 box-border overflow-hidden">
-                  <NImage
+                <div 
+                  class="h-32 w-full bg-slate-100/70 dark:bg-zinc-900/70 flex items-center justify-center p-1.5 box-border overflow-hidden cursor-zoom-in group"
+                  @click="openPreview(item)"
+                >
+                  <img
                     :src="item.src"
-                    :preview-src="item.src"
-                    object-fit="contain"
-                    class="h-full w-full flex items-center justify-center"
-                    :lazy="true"
-                    show-toolbar-tooltip
+                    :alt="item.fileName"
+                    class="h-full w-full object-contain transition-transform duration-200 group-hover:scale-105 select-none pointer-events-none"
+                    loading="lazy"
                   />
                 </div>
               </template>
@@ -654,6 +669,28 @@ onMounted(() => {
         </div>
       </template>
     </NModal>
+
+    <!-- 全屏大图极速预览浮层 (单击放大，再次点击任意位置或大图本身秒退缩小) -->
+    <Teleport to="body">
+      <div
+        v-if="previewVisible && previewItem"
+        class="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-md cursor-zoom-out select-none transition-all duration-200"
+        @click="closePreview"
+      >
+        <div class="relative max-w-[92vw] max-h-[92vh] flex flex-col items-center">
+          <img
+            :src="previewItem.src"
+            :alt="previewItem.fileName"
+            class="max-w-[90vw] max-h-[82vh] object-contain rounded-xl shadow-2xl transition-transform duration-150 hover:scale-[1.005] cursor-zoom-out"
+          />
+          <div class="mt-3 flex items-center gap-3 px-4 py-1.5 rounded-full bg-black/60 border border-white/20 text-white text-xs backdrop-blur-lg shadow-lg">
+            <span class="font-medium truncate max-w-[280px]">{{ previewItem.fileName }}</span>
+            <span class="text-white/40">|</span>
+            <span class="text-white/80">单击任意处关闭</span>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
