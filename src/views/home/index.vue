@@ -346,14 +346,14 @@ function handleAddItem(itemIconGroupId?: number) {
         <div class="mx-[auto] w-[80%]">
           <div class="flex mx-[auto] items-center justify-center text-white">
             <div class="logo">
-              <span class="text-2xl md:text-6xl font-bold ios27-glass-text select-none">
+              <span class="text-2xl md:text-6xl font-bold text-shadow">
                 {{ panelState.panelConfig.logoText }}
               </span>
             </div>
-            <div class="divider text-base lg:text-2xl mx-[12px] ios27-glass-divider select-none">
+            <div class="divider text-base lg:text-2xl mx-[10px]">
               |
             </div>
-            <div class="ios27-glass-text">
+            <div class="text-shadow">
               <Clock :hide-second="!panelState.panelConfig.clockShowSecond" />
             </div>
           </div>
@@ -621,23 +621,6 @@ html {
 
 .text-shadow {
   text-shadow: 2px 2px 50px rgb(0, 0, 0);
-}
-
-/* 苹果 iOS 27 超感毛玻璃透光文字 */
-.ios27-glass-text {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.68) 45%, rgba(255, 255, 255, 0.88) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(255, 255, 255, 0.5);
-  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.28));
-  letter-spacing: -0.02em;
-  transition: all 0.3s ease;
-}
-
-.ios27-glass-divider {
-  color: rgba(255, 255, 255, 0.45);
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
-  font-weight: 200;
 }
 
 .footer:empty, .footer > div:empty {
