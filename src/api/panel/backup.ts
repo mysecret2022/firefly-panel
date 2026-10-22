@@ -31,3 +31,13 @@ export function restoreBackup<T>(formData: FormData) {
     },
   })
 }
+
+export function restoreEncryptedBackupFile<T>(formData: FormData) {
+  return post<T>({
+    url: '/panel/backup/restoreEncrypted',
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+}

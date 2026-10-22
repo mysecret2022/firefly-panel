@@ -14,5 +14,6 @@ func InitBackup(router *gin.RouterGroup) {
 		r.GET("/panel/backup/export", api.ExportBackup)
 		r.GET("/panel/backup/exportJson", api.ExportJson)
 		r.POST("/panel/backup/restore", api.RestoreBackup)
+		r.POST("/panel/backup/restoreEncrypted", api.RestoreEncryptedBackup)
 	}
 }

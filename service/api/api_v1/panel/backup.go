@@ -11,6 +11,7 @@ import (
 	"sun-panel/api/api_v1/common/apiReturn"
 	"sun-panel/api/api_v1/common/base"
 	"sun-panel/global"
+	"sun-panel/lib/cryptoTool"
 	"sun-panel/models"
 	"time"
 
@@ -216,6 +217,107 @@ func (b *BackupApi) RestoreBackup(c *gin.Context) {
 	} else {
 		apiReturn.Error(c, "仅支持 .zip 或 .json 格式的备份文件")
 	}
+}
+
+// RestoreEncryptedBackup 从本地上传的 AES-256 加密备份包解密并全量覆盖还原
+func (b *BackupApi) RestoreEncryptedBackup(c *gin.Context) {
+	userInfo, _ := base.GetCurrentUserInfo(c)
+	if userInfo.Role != 1 {
+		apiReturn.Error(c, "权限不足，仅系统管理员可执行全站备份恢复")
+		return
+	}
+
+	password := strings.TrimSpace(c.PostForm("password"))
+	if password == "" {
+		apiReturn.Error(c, "AES-256 解密密码不能为空")
+		return
+	}
+
+	file, _, err := c.Request.FormFile("file")
+	if err != nil {
+		apiReturn.Error(c, "获取上传备份文件失败，请重新选择文件")
+		return
+	}
+	defer file.Close()
+
+	// 1. 读取上传的加密数据流
+	encBytes, err := io.ReadAll(file)
+	if err != nil {
+		apiReturn.Error(c, "读取上传数据失败: "+err.Error())
+		return
+	}
+
+	// 2. 使用 AES-256-GCM 进行验证与内存解密 (密码错误或数据篡改立即拦截终止)
+	zipBytes, err := cryptoTool.DecryptAES256GCM(encBytes, password)
+	if err != nil {
+		apiReturn.Error(c, "解密失败：密码错误或文件已损坏")
+		return
+	}
+
+	// 3. 校验解密出的内容是否为合法 ZIP 结构并写入临时文件
+	tempZipFile, err := os.CreateTemp("", "sun-panel-enc-restore-*.zip")
+	if err != nil {
+		apiReturn.Error(c, "创建临时解密文件失败: "+err.Error())
+		return
+	}
+	defer os.Remove(tempZipFile.Name())
+	defer tempZipFile.Close()
+
+	if _, err := tempZipFile.Write(zipBytes); err != nil {
+		apiReturn.Error(c, "写入临时解密包失败: "+err.Error())
+		return
+	}
+
+	zipReader, err := zip.OpenReader(tempZipFile.Name())
+	if err != nil {
+		apiReturn.Error(c, "解密失败：密码错误或文件已损坏")
+		return
+	}
+	defer zipReader.Close()
+
+	var backupData SiteBackupData
+	hasJson := false
+
+	sourcePath := global.Config.GetValueString("base", "source_path")
+	if sourcePath == "" {
+		sourcePath = "./files"
+	}
+
+	for _, zf := range zipReader.File {
+		if zf.Name == "backup_data.json" {
+			rc, err := zf.Open()
+			if err != nil {
+				continue
+			}
+			content, _ := io.ReadAll(rc)
+			rc.Close()
+			if err := json.Unmarshal(content, &backupData); err == nil {
+				hasJson = true
+			}
+		} else if strings.HasPrefix(zf.Name, "files/") {
+			relPath := strings.TrimPrefix(zf.Name, "files/")
+			destPath := filepath.Join(sourcePath, relPath)
+			extractZipFile(zf, destPath)
+		} else if strings.HasPrefix(zf.Name, "uploads/") {
+			destPath := filepath.Join(".", zf.Name)
+			extractZipFile(zf, destPath)
+		}
+	}
+
+	if !hasJson {
+		apiReturn.Error(c, "解密失败：未在解密包中找到有效的 backup_data.json 描述文件")
+		return
+	}
+
+	// 4. 覆盖写入数据库
+	if err := applyDatabaseRestore(backupData, userInfo); err != nil {
+		apiReturn.Error(c, "恢复数据库失败: "+err.Error())
+		return
+	}
+
+	apiReturn.SuccessData(c, gin.H{
+		"message": "解密还原成功！数据已更新，页面即将刷新",
+	})
 }
 
 // 将指定目录打入 zip

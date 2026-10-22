@@ -2,7 +2,7 @@
 import { NDivider, NGradientText, NTag } from 'naive-ui'
 import srcSvglogo from '@/assets/about_logo.png'
 
-const frontVersion = '1.0.2'
+const frontVersion = '1.0.10'
 </script>
 
 <template>
@@ -44,7 +44,7 @@ const frontVersion = '1.0.2'
 
       <div class="mt-4">
         <NTag :bordered="false" size="small" type="success">
-          Firefly-panel v1.0.2
+          Firefly-panel v1.0.10
         </NTag>
       </div>
     </div>
