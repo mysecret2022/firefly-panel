@@ -62,10 +62,6 @@ const moveModalVisible = ref(false)
 const moveTargetIds = ref<number[]>([])
 const targetCategory = ref<number>(1)
 
-// 大图全屏预览 (单机放大，再点击一下直接退出缩小)
-const previewImageSrc = ref<string | null>(null)
-const previewImageName = ref<string>('')
-
 // 动态可调排布列数
 const customGridCols = ref<string>('auto')
 const currentGridCols = computed(() => {
@@ -73,38 +69,6 @@ const currentGridCols = computed(() => {
     return '2 380:3 560:4 740:5 920:6 1100:7 1280:8 1460:9 1640:10 1820:11 2000:12'
   return customGridCols.value
 })
-
-function openPreview(item: FileItem) {
-  previewImageSrc.value = item.src
-  previewImageName.value = item.fileName
-}
-
-function closePreview() {
-  previewImageSrc.value = null
-}
-
-async function copyDirectLink(e: MouseEvent) {
-  e.stopPropagation()
-  if (!previewImageSrc.value)
-    return
-  const fullUrl = previewImageSrc.value.startsWith('http')
-    ? previewImageSrc.value
-    : `${window.location.origin}/${previewImageSrc.value.replace(/^\//, '')}`
-  await navigator.clipboard.writeText(fullUrl)
-  ms.success('已复制图片直链！')
-}
-
-async function copyMarkdownLink(e: MouseEvent) {
-  e.stopPropagation()
-  if (!previewImageSrc.value)
-    return
-  const fullUrl = previewImageSrc.value.startsWith('http')
-    ? previewImageSrc.value
-    : `${window.location.origin}/${previewImageSrc.value.replace(/^\//, '')}`
-  const md = `![${previewImageName.value || 'image'}](${fullUrl})`
-  await navigator.clipboard.writeText(md)
-  ms.success('已复制 Markdown 格式外链！')
-}
 
 // 根据当前 Tab 过滤展示的列表
 const filteredList = computed(() => {
@@ -541,17 +505,16 @@ onMounted(() => {
                 </NTag>
               </div>
 
-              <!-- 图片预览区域 (点击一下放大预览，再点一下直接退出缩小) -->
+              <!-- 图片预览区域 (使用 Naive UI 原生 NImage，支持滚轮/工具栏自由放大缩小旋转与全屏展示) -->
               <template #cover>
-                <div
-                  class="h-32 w-full bg-slate-100/70 dark:bg-zinc-900/70 flex items-center justify-center p-1 box-border cursor-zoom-in group/img overflow-hidden"
-                  title="点击全屏放大预览"
-                  @click="openPreview(item)"
-                >
-                  <img
+                <div class="h-32 w-full bg-slate-100/70 dark:bg-zinc-900/70 flex items-center justify-center p-1.5 box-border overflow-hidden">
+                  <NImage
                     :src="item.src"
-                    class="h-full w-full object-contain transition-transform duration-200 group-hover/img:scale-105"
-                    loading="lazy"
+                    :preview-src="item.src"
+                    object-fit="contain"
+                    class="h-full w-full flex items-center justify-center"
+                    :lazy="true"
+                    show-toolbar-tooltip
                   />
                 </div>
               </template>
@@ -627,41 +590,6 @@ onMounted(() => {
           </NGridItem>
         </NGrid>
       </NSpin>
-    </div>
-
-    <!-- 全屏大图预览浮层 (点击任意位置/再次点击大图本身直接缩小退出) -->
-    <div
-      v-if="previewImageSrc"
-      class="fixed inset-0 z-[9999] bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-4 cursor-zoom-out select-none transition-opacity duration-200"
-      @click="closePreview"
-    >
-      <!-- 顶部轻量浮动操作工具栏 (复制直链 / Markdown，不破坏底部卡片纯净) -->
-      <div
-        class="absolute top-4 flex items-center gap-3 bg-white/10 dark:bg-black/40 border border-white/20 rounded-full px-4 py-1.5 shadow-lg backdrop-blur-lg"
-        @click.stop
-      >
-        <span class="text-xs text-white/80 font-mono truncate max-w-xs">{{ previewImageName }}</span>
-        <NButton size="tiny" type="info" secondary round @click="copyDirectLink">
-          🔗 复制直链
-        </NButton>
-        <NButton size="tiny" type="success" secondary round @click="copyMarkdownLink">
-          📝 复制 Markdown
-        </NButton>
-        <NButton size="tiny" quaternary circle text-color="white" @click="closePreview">
-          ✕
-        </NButton>
-      </div>
-
-      <!-- 放大居中大图 (点击大图本身也直接缩小) -->
-      <img
-        :src="previewImageSrc"
-        class="max-w-[90vw] max-h-[85vh] object-contain shadow-2xl rounded-lg cursor-zoom-out"
-        alt="Preview"
-        @click="closePreview"
-      />
-      <div class="mt-3 text-xs text-white/60">
-        点击任意区域即可退出缩小
-      </div>
     </div>
 
     <!-- 重命名模态框 -->
