@@ -892,23 +892,25 @@ onMounted(() => {
                 </NSpace>
               </template>
 
-              <!-- 顶栏横向同一排：左侧存储引擎单选，右侧连通性测试按钮与私有/公开探测状态 -->
-              <div class="mb-2 p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-lg border border-slate-200 dark:border-zinc-700 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <!-- 左侧：云存储引擎配置 -->
-                <div class="flex items-center gap-3">
-                  <span class="text-xs font-semibold text-slate-700 dark:text-zinc-200 whitespace-nowrap">存储引擎:</span>
-                  <NRadioGroup v-model:value="form.type" size="small">
-                    <NRadio value="github">
-                      GitHub 仓库
-                    </NRadio>
-                    <NRadio value="r2">
-                      Cloudflare R2
-                    </NRadio>
+              <!-- 顶栏：左侧存储引擎，右侧连通性状态与操作按钮。使用 flex-wrap 与 shrink-0 杜绝文字挤压变形 -->
+              <div class="mb-4 p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-lg border border-slate-200 dark:border-zinc-700 flex flex-wrap items-center justify-between gap-3">
+                <!-- 左侧：云存储引擎配置（严格禁止折行） -->
+                <div class="flex items-center gap-3 shrink-0 whitespace-nowrap">
+                  <span class="text-xs font-semibold text-slate-700 dark:text-zinc-200">存储引擎:</span>
+                  <NRadioGroup v-model:value="form.type" size="small" class="whitespace-nowrap">
+                    <NSpace align="center" :size="12">
+                      <NRadio value="github" class="!whitespace-nowrap">
+                        GitHub 仓库
+                      </NRadio>
+                      <NRadio value="r2" class="!whitespace-nowrap">
+                        Cloudflare R2
+                      </NRadio>
+                    </NSpace>
                   </NRadioGroup>
                 </div>
 
-                <!-- 右侧：测试连通性按钮及私有/公开仓库状态标签 -->
-                <div class="flex items-center gap-2">
+                <!-- 右侧：测试连通性状态标签与按钮（禁止压缩） -->
+                <div class="flex items-center gap-2 shrink-0 whitespace-nowrap">
                   <template v-if="connectionStatus.tested">
                     <NTag
                       v-if="connectionStatus.isPrivate === true"

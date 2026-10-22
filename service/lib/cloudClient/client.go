@@ -192,9 +192,19 @@ func (g *GitHubClient) UploadFile(relativePath string, data []byte, contentType 
 	return fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/%s", g.Config.Owner, g.Config.Repo, g.Config.Branch, fullPath), nil
 }
 
-// DownloadFile 从 GitHub 获取文件内容
+// DownloadFile 从 GitHub 获取文件内容 (修复 BasePath 重复拼接 404 Bug)
 func (g *GitHubClient) DownloadFile(relativePath string) ([]byte, error) {
-	fullPath := strings.TrimPrefix(path.Join(g.Config.BasePath, relativePath), "/")
+	cleanRel := strings.TrimPrefix(relativePath, "/")
+	cleanBase := strings.Trim(g.Config.BasePath, "/")
+
+	// 智能去重：若 relativePath 已经以 BasePath 开头，则不再重复拼接
+	fullPath := cleanRel
+	if cleanBase != "" {
+		if !strings.HasPrefix(cleanRel, cleanBase+"/") && cleanRel != cleanBase {
+			fullPath = path.Join(cleanBase, cleanRel)
+		}
+	}
+
 	apiUrl := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/%s?ref=%s", g.Config.Owner, g.Config.Repo, fullPath, g.Config.Branch)
 
 	req, err := http.NewRequest("GET", apiUrl, nil)
@@ -202,7 +212,6 @@ func (g *GitHubClient) DownloadFile(relativePath string) ([]byte, error) {
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+g.Config.Token)
-	// 使用 raw 格式直接拉取二进制流，彻底解决 >1MB 文件返回空内容导致的解密失败
 	req.Header.Set("Accept", "application/vnd.github.v3.raw")
 
 	resp, err := g.client.Do(req)
@@ -213,7 +222,7 @@ func (g *GitHubClient) DownloadFile(relativePath string) ([]byte, error) {
 
 	if resp.StatusCode != 200 {
 		b, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("获取文件失败 (%d): %s", resp.StatusCode, string(b))
+		return nil, fmt.Errorf("GitHub API 获取文件失败 (%d): %s, 路径: %s", resp.StatusCode, string(b), fullPath)
 	}
 
 	return io.ReadAll(resp.Body)
