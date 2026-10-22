@@ -11,6 +11,7 @@ import {
   NInput,
   NSelect,
   NSpace,
+  NSwitch,
   NTabPane,
   NTabs,
   NUpload,
@@ -24,7 +25,7 @@ import { exportJson, importJsonString } from '@/utils/jsonImportExport'
 import { get as getAbout } from '@/api/system/about'
 import { edit as addGroup, getList as getGroupList } from '@/api/panel/itemIconGroup'
 import { addMultiple as addMultipleIcons, getListByGroupId } from '@/api/panel/itemIcon'
-import { exportBackup, restoreBackup, restoreEncryptedBackupFile } from '@/api/panel/backup'
+import { exportBackup, restoreBackup } from '@/api/panel/backup'
 import { t } from '@/locales'
 import { useAuthStore } from '@/store'
 
@@ -75,51 +76,13 @@ function handleExportFullBackup() {
   }
 }
 
-// 恢复全站备份文件选择
-function handleRestoreFileChange(options: { file: UploadFileInfo; fileList: Array<UploadFileInfo> }) {
-  const file = options.file.file
-  if (!file)
-    return
-
-  dialog.warning({
-    title: '确认恢复整站数据？',
-    content: `即将从【${file.name}】还原数据。这将会覆盖现有数据表并还原图片附件，是否确认继续？`,
-    positiveText: '确认恢复',
-    negativeText: '取消',
-    onPositiveClick: async () => {
-      restoreLoading.value = true
-      const formData = new FormData()
-      formData.append('file', file)
-
-      try {
-        const res: any = await restoreBackup(formData)
-        if (res.code === 0) {
-          ms.success('数据恢复成功！页面即将自动刷新...')
-          setTimeout(() => {
-            window.location.reload()
-          }, 1500)
-        }
-        else {
-          ms.error(`恢复失败: ${res.msg || '未知错误'}`)
-        }
-      }
-      catch (err: any) {
-        ms.error(`恢复异常: ${err.message || '网络连接异常'}`)
-      }
-      finally {
-        restoreLoading.value = false
-      }
-    },
-  })
-}
-
-// 3. 恢复本地加密备份包 (AES-256 解密还原)
-const encryptedFile = ref<File | null>(null)
-const encryptedFileName = ref('')
-const encryptedFileSize = ref(0)
-const localDecryptPassword = ref('')
-const localRestoreLoading = ref(false)
-const localRestoreStepText = ref('')
+// 2. 统一恢复全站数据 (支持普通 ZIP/JSON，以及 AES-256 加密包)
+const selectedFile = ref<File | null>(null)
+const selectedFileName = ref('')
+const selectedFileSize = ref(0)
+const isEncrypted = ref(false)
+const decryptPassword = ref('')
+const restoreStepText = ref('')
 
 function formatSize(bytes: number) {
   if (!bytes || bytes === 0)
@@ -130,71 +93,79 @@ function formatSize(bytes: number) {
   return `${(bytes / k ** i).toFixed(1)} ${sizes[i]}`
 }
 
-function handleEncryptedFileSelect(options: { file: UploadFileInfo; fileList: Array<UploadFileInfo> }) {
+function handleFileSelect(options: { file: UploadFileInfo; fileList: Array<UploadFileInfo> }) {
   const f = options.file.file
   if (!f)
     return
-  encryptedFile.value = f
-  encryptedFileName.value = f.name
-  encryptedFileSize.value = f.size
+  selectedFile.value = f
+  selectedFileName.value = f.name
+  selectedFileSize.value = f.size
+
+  // 智能识别：若文件包含 .enc 或以 .bin 结尾，自动开启加密选项
+  const lowerName = f.name.toLowerCase()
+  if (lowerName.includes('.enc') || lowerName.endsWith('.bin')) {
+    isEncrypted.value = true
+    ms.info('已自动检测并开启 AES-256 解密选项')
+  }
 }
 
-function handleClearEncryptedFile() {
-  encryptedFile.value = null
-  encryptedFileName.value = ''
-  encryptedFileSize.value = 0
+function handleClearFile() {
+  selectedFile.value = null
+  selectedFileName.value = ''
+  selectedFileSize.value = 0
+  decryptPassword.value = ''
+  restoreStepText.value = ''
 }
 
-function handleStartLocalEncryptedRestore() {
-  if (!encryptedFile.value) {
-    ms.warning('请先选择本地加密备份文件')
+function handleStartRestore() {
+  if (!selectedFile.value) {
+    ms.warning('请先选择备份文件 (.zip / .enc / .json)')
     return
   }
-  if (!localDecryptPassword.value.trim()) {
-    ms.warning('请输入 AES-256 解密密码')
+
+  if (isEncrypted.value && !decryptPassword.value.trim()) {
+    ms.warning('已开启加密恢复，请输入 AES-256 解密密码')
     return
   }
 
   dialog.warning({
-    title: '危险操作：确认还原本地加密备份？',
-    content: '还原将完全覆盖当前系统的数据库和附件文件，操作不可逆。请确认密码正确，是否继续？',
-    positiveText: '确认解密并覆盖还原',
+    title: '确认恢复整站数据？',
+    content: `即将从【${selectedFileName.value}】还原数据。这将会覆盖现有数据表并还原图片附件，过程不可逆，是否确认继续？`,
+    positiveText: '确认覆盖还原',
     negativeText: '取消',
     onPositiveClick: async () => {
-      localRestoreLoading.value = true
-      localRestoreStepText.value = '正在上传加密备份文件...'
-
-      const timer = setTimeout(() => {
-        if (localRestoreLoading.value)
-          localRestoreStepText.value = '正在内存中进行 AES-256 校验与解密...'
-      }, 1500)
+      restoreLoading.value = true
+      restoreStepText.value = isEncrypted.value ? '正在上传加密备份包并在内存中解密校验...' : '正在上传并校验备份数据...'
 
       const formData = new FormData()
-      formData.append('file', encryptedFile.value!)
-      formData.append('password', localDecryptPassword.value.trim())
+      formData.append('file', selectedFile.value!)
+      if (isEncrypted.value && decryptPassword.value.trim())
+        formData.append('password', decryptPassword.value.trim())
 
       try {
-        const res: any = await restoreEncryptedBackupFile(formData)
-        clearTimeout(timer)
+        const res: any = await restoreBackup(formData)
         if (res.code === 0) {
-          localRestoreStepText.value = '正在写入更新数据库并刷新生效...'
-          ms.success(res.data?.message || '解密还原成功！数据已更新，页面即将自动刷新...')
+          restoreStepText.value = '恢复成功！正在刷新页面生效...'
+          ms.success(res.data?.message || '整站数据恢复成功！页面即将自动刷新...')
           setTimeout(() => {
             window.location.reload()
           }, 1500)
         }
         else {
-          localRestoreStepText.value = ''
-          ms.error(res.msg || '解密失败：密码错误或文件已损坏')
+          restoreStepText.value = ''
+          const errMsg = res.msg || '恢复失败：未知错误'
+          ms.error(errMsg)
+          // 容错引导：若后端提示加密但未提供密码，自动展开密码框引导输入
+          if (errMsg.includes('加密备份') || errMsg.includes('解密密码'))
+            isEncrypted.value = true
         }
       }
       catch (err: any) {
-        clearTimeout(timer)
-        localRestoreStepText.value = ''
-        ms.error(`还原异常: ${err.message || '网络连接超时或解密失败'}`)
+        restoreStepText.value = ''
+        ms.error(`恢复异常: ${err.message || '网络连接超时或解密失败'}`)
       }
       finally {
-        localRestoreLoading.value = false
+        restoreLoading.value = false
       }
     },
   })
@@ -384,143 +355,102 @@ async function handleStartImport() {
             </div>
           </NCard>
 
-          <!-- 恢复迁移卡片 (纵向全宽自适应，显示完整) -->
+          <!-- 恢复迁移卡片 (统一支持标准与 AES-256 加密备份还原) -->
           <NCard title="2. 恢复整站数据 (迁移还原)" size="small" :bordered="true" class="rounded-xl shadow-xs">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div class="text-gray-500 text-xs leading-relaxed">
-                上传之前导出的 .zip 备份包（或 .json 文件），一键解压并覆盖还原所有数据。
-              </div>
-              <div class="shrink-0">
-                <NUpload
-                  accept=".zip,.json"
-                  :default-upload="false"
-                  :show-file-list="false"
-                  @change="handleRestoreFileChange"
-                >
-                  <NButton type="warning" size="medium" :loading="restoreLoading">
-                    <template #icon>
-                      <SvgIcon icon="fa6:solid-file-import" />
-                    </template>
-                    上传并还原数据 (.zip)
-                  </NButton>
-                </NUpload>
-              </div>
-            </div>
-          </NCard>
-
-          <!-- 3. 恢复本地加密备份包 (AES-256 解密还原) -->
-          <NCard title="3. 恢复本地加密备份包 (AES-256 解密还原)" size="small" :bordered="true" class="rounded-xl shadow-xs">
             <div class="space-y-3">
               <div class="text-gray-500 text-xs leading-relaxed">
-                上传本地保存的云端加密备份包（.enc / .zip.enc / .zip）。输入对应的 AES-256 密钥后，系统将在内存中解密校验并全量覆盖还原整站数据。
+                上传之前导出的备份包（.zip / .enc / .json），支持标准数据包或 AES-256 加密备份，一键解压并覆盖还原整站数据。
               </div>
 
-              <!-- 表单排版: 本地文件选择 + 密码输入 + 操作按钮 (紧凑规范) -->
+              <!-- 上传与配置主体 -->
               <div class="p-3 bg-slate-50/80 dark:bg-zinc-800/60 rounded-lg border border-slate-200/70 dark:border-zinc-700/60 space-y-3">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <!-- 本地文件上传与展示区 -->
-                  <div>
-                    <div class="text-xs font-medium text-slate-700 dark:text-zinc-200 mb-1 flex items-center justify-between">
-                      <span>本地加密备份文件 (.zip / .enc / .bin)</span>
-                      <span v-if="encryptedFile" class="text-primary text-[11px] cursor-pointer hover:underline" @click="handleClearEncryptedFile">
-                        重新选择 / 清除
-                      </span>
-                    </div>
-
-                    <!-- 未选文件时：上传按钮与拖拽提示 -->
-                    <div v-if="!encryptedFile">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <!-- 文件选择展示区 -->
+                  <div class="flex-1 min-w-0">
+                    <div v-if="!selectedFile">
                       <NUpload
-                        accept=".zip,.enc,.bin"
+                        accept=".zip,.enc,.bin,.json"
                         :default-upload="false"
                         :show-file-list="false"
-                        :disabled="localRestoreLoading"
-                        @change="handleEncryptedFileSelect"
+                        :disabled="restoreLoading"
+                        @change="handleFileSelect"
                       >
-                        <NUploadDragger class="py-3 px-2 flex flex-col items-center justify-center border-dashed border-gray-300 dark:border-zinc-700 rounded-lg cursor-pointer hover:border-primary transition-colors">
-                          <SvgIcon icon="material-symbols:lock-open-right-outline" class="text-2xl text-slate-400 mb-1" />
-                          <div class="text-xs text-slate-600 dark:text-zinc-300">
-                            点击或拖拽加密备份文件至此处
-                          </div>
-                          <div class="text-[11px] text-slate-400 mt-0.5">
-                            支持 .enc / .zip / .bin 格式（最大支持 1GB+ 全量包）
-                          </div>
-                        </NUploadDragger>
+                        <NButton secondary type="warning" size="medium">
+                          <template #icon>
+                            <SvgIcon icon="fa6:solid-file-import" />
+                          </template>
+                          选择本地备份文件 (.zip / .enc / .json)
+                        </NButton>
                       </NUpload>
                     </div>
 
-                    <!-- 已选文件时：状态卡片展示 -->
-                    <div v-else class="p-2.5 bg-white dark:bg-zinc-800 rounded-lg border border-gray-200 dark:border-zinc-700 flex items-center justify-between gap-2">
-                      <div class="flex items-center gap-2 min-w-0">
-                        <SvgIcon icon="material-symbols:enhanced-encryption" class="text-xl text-amber-500 shrink-0" />
-                        <div class="min-w-0">
-                          <div class="text-xs font-mono font-medium text-slate-800 dark:text-zinc-100 truncate" :title="encryptedFileName">
-                            {{ encryptedFileName }}
-                          </div>
-                          <div class="text-[11px] text-slate-400">
-                            文件大小: {{ formatSize(encryptedFileSize) }}
-                          </div>
+                    <div v-else class="flex items-center gap-2 p-2 bg-white dark:bg-zinc-800 rounded-lg border border-gray-200 dark:border-zinc-700">
+                      <SvgIcon
+                        :icon="isEncrypted ? 'material-symbols:enhanced-encryption' : 'fa6:solid-file-zipper'"
+                        :class="isEncrypted ? 'text-amber-500' : 'text-blue-500'"
+                        class="text-xl shrink-0"
+                      />
+                      <div class="min-w-0 flex-1">
+                        <div class="text-xs font-mono font-medium text-slate-800 dark:text-zinc-100 truncate" :title="selectedFileName">
+                          {{ selectedFileName }}
+                        </div>
+                        <div class="text-[11px] text-slate-400">
+                          文件大小: {{ formatSize(selectedFileSize) }}
                         </div>
                       </div>
-                      <NButton size="tiny" quaternary type="error" :disabled="localRestoreLoading" @click="handleClearEncryptedFile">
+                      <NButton size="tiny" quaternary type="error" :disabled="restoreLoading" @click="handleClearFile">
                         移除
                       </NButton>
                     </div>
                   </div>
 
-                  <!-- AES-256 解密密码输入框 -->
-                  <div class="flex flex-col justify-between">
-                    <div>
-                      <div class="text-xs font-medium text-slate-700 dark:text-zinc-200 mb-1 flex items-center justify-between">
-                        <span>AES-256 解密密码</span>
-                        <span class="text-[11px] text-slate-400">密钥仅用于内存解密验证，不落盘存储</span>
-                      </div>
+                  <!-- 恢复主按钮 -->
+                  <div class="shrink-0 flex items-center gap-2">
+                    <NButton
+                      type="warning"
+                      size="medium"
+                      :loading="restoreLoading"
+                      :disabled="!selectedFile"
+                      @click="handleStartRestore"
+                    >
+                      <template #icon>
+                        <SvgIcon icon="fa6:solid-file-import" />
+                      </template>
+                      {{ isEncrypted ? '解密并还原数据' : '上传并还原数据' }}
+                    </NButton>
+                  </div>
+                </div>
+
+                <!-- 动态呈现加密选项: 折叠开关 + 密码框 -->
+                <div class="pt-2 border-t border-slate-200/60 dark:border-zinc-700/50 space-y-2">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2 cursor-pointer select-none" @click="isEncrypted = !isEncrypted">
+                      <NSwitch v-model:value="isEncrypted" size="small" />
+                      <span class="text-xs font-medium text-slate-700 dark:text-zinc-200">该备份包使用了 AES-256 加密</span>
+                    </div>
+                    <span v-if="isEncrypted" class="text-[11px] text-slate-400">密钥仅用于内存解密验证，不落盘存储</span>
+                  </div>
+
+                  <!-- 勾选后平滑展开密码框 -->
+                  <div v-if="isEncrypted" class="pt-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <div class="flex-1">
                       <NInput
-                        v-model:value="localDecryptPassword"
+                        v-model:value="decryptPassword"
                         type="password"
                         size="small"
                         show-password-on="click"
-                        :disabled="localRestoreLoading"
-                        placeholder="请输入该备份包对应的加密密码"
+                        :disabled="restoreLoading"
+                        placeholder="请输入该备份包对应的 AES-256 解密密码"
                         autocomplete="new-password"
                       />
-                    </div>
-
-                    <div class="text-[11px] text-slate-400 dark:text-zinc-500 leading-normal mt-2">
-                      提示：系统将在内存中以 AES-256-GCM 验证密钥。若密码错误，服务将立即阻断并退出，绝不损坏当前数据。
                     </div>
                   </div>
                 </div>
 
-                <!-- 底部操作与步骤反馈 -->
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-200/60 dark:border-zinc-700/50">
-                  <div class="text-xs text-slate-500 dark:text-zinc-400 flex items-center gap-1.5">
-                    <span v-if="localRestoreStepText" class="text-amber-500 flex items-center gap-1 font-medium">
-                      <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                      {{ localRestoreStepText }}
-                    </span>
-                    <span v-else-if="encryptedFile" class="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                      已就绪，请输入密码后点击右侧按钮开始解密还原
-                    </span>
-                    <span v-else>
-                      请先选择本地加密备份文件并输入解密密码
-                    </span>
-                  </div>
-
-                  <div class="flex items-center gap-2 shrink-0">
-                    <NButton
-                      type="warning"
-                      size="medium"
-                      :loading="localRestoreLoading"
-                      :disabled="!encryptedFile"
-                      @click="handleStartLocalEncryptedRestore"
-                    >
-                      <template #icon>
-                        <SvgIcon icon="material-symbols:cloud-download" />
-                      </template>
-                      上传并解密还原
-                    </NButton>
-                  </div>
+                <!-- 步骤反馈 -->
+                <div v-if="restoreStepText" class="text-xs text-amber-500 flex items-center gap-1.5 pt-1 font-medium">
+                  <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                  {{ restoreStepText }}
                 </div>
               </div>
             </div>

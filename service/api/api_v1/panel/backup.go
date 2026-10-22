@@ -114,7 +114,7 @@ func (b *BackupApi) ExportJson(c *gin.Context) {
 	apiReturn.SuccessData(c, backup)
 }
 
-// RestoreBackup 从上传的 ZIP 或 JSON 恢复全站数据
+// RestoreBackup 统一整站数据恢复入口（支持标准 ZIP、JSON、以及 AES-256 加密备份包）
 func (b *BackupApi) RestoreBackup(c *gin.Context) {
 	userInfo, _ := base.GetCurrentUserInfo(c)
 	if userInfo.Role != 1 {
@@ -124,153 +124,77 @@ func (b *BackupApi) RestoreBackup(c *gin.Context) {
 
 	file, fileHeader, err := c.Request.FormFile("file")
 	if err != nil {
-		apiReturn.Error(c, "获取上传文件失败")
-		return
-	}
-	defer file.Close()
-
-	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
-	if ext == ".zip" {
-		// 处理 ZIP 文件
-		tempZipFile, err := os.CreateTemp("", "sun-panel-restore-*.zip")
-		if err != nil {
-			apiReturn.Error(c, "创建临时文件失败: "+err.Error())
-			return
-		}
-		defer os.Remove(tempZipFile.Name())
-		defer tempZipFile.Close()
-
-		if _, err := io.Copy(tempZipFile, file); err != nil {
-			apiReturn.Error(c, "写入临时文件失败: "+err.Error())
-			return
-		}
-
-		zipReader, err := zip.OpenReader(tempZipFile.Name())
-		if err != nil {
-			apiReturn.Error(c, "无法解压 ZIP 文件: "+err.Error())
-			return
-		}
-		defer zipReader.Close()
-
-		var backupData SiteBackupData
-		hasJson := false
-
-		sourcePath := global.Config.GetValueString("base", "source_path")
-		if sourcePath == "" {
-			sourcePath = "./files"
-		}
-
-		for _, zf := range zipReader.File {
-			if zf.Name == "backup_data.json" {
-				rc, err := zf.Open()
-				if err != nil {
-					continue
-				}
-				content, _ := io.ReadAll(rc)
-				rc.Close()
-				if err := json.Unmarshal(content, &backupData); err == nil {
-					hasJson = true
-				}
-			} else if strings.HasPrefix(zf.Name, "files/") {
-				// 恢复文件到 sourcePath
-				relPath := strings.TrimPrefix(zf.Name, "files/")
-				destPath := filepath.Join(sourcePath, relPath)
-				extractZipFile(zf, destPath)
-			} else if strings.HasPrefix(zf.Name, "uploads/") {
-				// 恢复 uploads 文件
-				destPath := filepath.Join(".", zf.Name)
-				extractZipFile(zf, destPath)
-			}
-		}
-
-		if !hasJson {
-			apiReturn.Error(c, "压缩包内未找到有效的 backup_data.json 描述文件")
-			return
-		}
-
-		// 写入数据库
-		if err := applyDatabaseRestore(backupData, userInfo); err != nil {
-			apiReturn.Error(c, "恢复数据库失败: "+err.Error())
-			return
-		}
-
-		apiReturn.Success(c)
-	} else if ext == ".json" {
-		// 处理纯 JSON 文件
-		content, err := io.ReadAll(file)
-		if err != nil {
-			apiReturn.Error(c, "读取 JSON 文件失败: "+err.Error())
-			return
-		}
-		var backupData SiteBackupData
-		if err := json.Unmarshal(content, &backupData); err != nil {
-			apiReturn.Error(c, "解析 JSON 格式错误: "+err.Error())
-			return
-		}
-
-		if err := applyDatabaseRestore(backupData, userInfo); err != nil {
-			apiReturn.Error(c, "恢复数据库失败: "+err.Error())
-			return
-		}
-
-		apiReturn.Success(c)
-	} else {
-		apiReturn.Error(c, "仅支持 .zip 或 .json 格式的备份文件")
-	}
-}
-
-// RestoreEncryptedBackup 从本地上传的 AES-256 加密备份包解密并全量覆盖还原
-func (b *BackupApi) RestoreEncryptedBackup(c *gin.Context) {
-	userInfo, _ := base.GetCurrentUserInfo(c)
-	if userInfo.Role != 1 {
-		apiReturn.Error(c, "权限不足，仅系统管理员可执行全站备份恢复")
-		return
-	}
-
-	password := strings.TrimSpace(c.PostForm("password"))
-	if password == "" {
-		apiReturn.Error(c, "AES-256 解密密码不能为空")
-		return
-	}
-
-	file, _, err := c.Request.FormFile("file")
-	if err != nil {
 		apiReturn.Error(c, "获取上传备份文件失败，请重新选择文件")
 		return
 	}
 	defer file.Close()
 
-	// 1. 读取上传的加密数据流
-	encBytes, err := io.ReadAll(file)
+	password := strings.TrimSpace(c.PostForm("password"))
+
+	// 1. 读取上传的原始字节流
+	rawBytes, err := io.ReadAll(file)
 	if err != nil {
 		apiReturn.Error(c, "读取上传数据失败: "+err.Error())
 		return
 	}
 
-	// 2. 使用 AES-256-GCM 进行验证与内存解密 (密码错误或数据篡改立即拦截终止)
-	zipBytes, err := cryptoTool.DecryptAES256GCM(encBytes, password)
-	if err != nil {
-		apiReturn.Error(c, "解密失败：密码错误或文件已损坏")
-		return
+	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+	var zipBytes []byte
+
+	// 2. 判断是否提供解密密码或是否为加密包
+	if password != "" {
+		// 用户提供了密码，在内存中使用 AES-256-GCM 验证并解密
+		decrypted, err := cryptoTool.DecryptAES256GCM(rawBytes, password)
+		if err != nil {
+			apiReturn.Error(c, "解密失败：密码错误或文件已损坏")
+			return
+		}
+		zipBytes = decrypted
+	} else {
+		// 未提供密码，先检查是否为标准 ZIP 文件 (ZIP 头部标识: PK\x03\x04 或 PK\x05\x06)
+		if len(rawBytes) >= 4 && (string(rawBytes[:4]) == "PK\x03\x04" || string(rawBytes[:4]) == "PK\x05\x06") {
+			zipBytes = rawBytes
+		} else if ext == ".json" {
+			// 处理纯 JSON 文件
+			var backupData SiteBackupData
+			if err := json.Unmarshal(rawBytes, &backupData); err != nil {
+				apiReturn.Error(c, "解析 JSON 格式错误: "+err.Error())
+				return
+			}
+			if err := applyDatabaseRestore(backupData, userInfo); err != nil {
+				apiReturn.Error(c, "恢复数据库失败: "+err.Error())
+				return
+			}
+			apiReturn.Success(c)
+			return
+		} else {
+			// 无法作为普通 ZIP 解析，且不是 JSON
+			apiReturn.Error(c, "检测到该文件为加密备份，请输入 AES-256 解密密码后再试")
+			return
+		}
 	}
 
-	// 3. 校验解密出的内容是否为合法 ZIP 结构并写入临时文件
-	tempZipFile, err := os.CreateTemp("", "sun-panel-enc-restore-*.zip")
+	// 3. 将 (解密后或原生的) zipBytes 写入临时文件供安全解压
+	tempZipFile, err := os.CreateTemp("", "sun-panel-restore-*.zip")
 	if err != nil {
-		apiReturn.Error(c, "创建临时解密文件失败: "+err.Error())
+		apiReturn.Error(c, "创建临时解压文件失败: "+err.Error())
 		return
 	}
 	defer os.Remove(tempZipFile.Name())
 	defer tempZipFile.Close()
 
 	if _, err := tempZipFile.Write(zipBytes); err != nil {
-		apiReturn.Error(c, "写入临时解密包失败: "+err.Error())
+		apiReturn.Error(c, "写入临时解压文件失败: "+err.Error())
 		return
 	}
 
 	zipReader, err := zip.OpenReader(tempZipFile.Name())
 	if err != nil {
-		apiReturn.Error(c, "解密失败：密码错误或文件已损坏")
+		if password != "" {
+			apiReturn.Error(c, "解密失败：密码错误或文件已损坏")
+		} else {
+			apiReturn.Error(c, "检测到该文件为加密备份，请输入 AES-256 解密密码后再试")
+		}
 		return
 	}
 	defer zipReader.Close()
@@ -305,7 +229,7 @@ func (b *BackupApi) RestoreEncryptedBackup(c *gin.Context) {
 	}
 
 	if !hasJson {
-		apiReturn.Error(c, "解密失败：未在解密包中找到有效的 backup_data.json 描述文件")
+		apiReturn.Error(c, "压缩包内未找到有效的 backup_data.json 描述文件")
 		return
 	}
 
@@ -316,7 +240,7 @@ func (b *BackupApi) RestoreEncryptedBackup(c *gin.Context) {
 	}
 
 	apiReturn.SuccessData(c, gin.H{
-		"message": "解密还原成功！数据已更新，页面即将刷新",
+		"message": "数据恢复成功！页面即将自动刷新",
 	})
 }
 
