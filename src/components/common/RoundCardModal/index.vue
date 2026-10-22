@@ -47,10 +47,16 @@ let dragMouseStartY = 0
 let cardStartLeft = 0
 let cardStartTop = 0
 
-// 拉伸缩放状态 (左上角完全固定，右下角拖动变形)
+// 8 方向自由缩放调整状态 (E, W, S, N, SE, SW, NE, NW)
+type ResizeDirection = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
 let isResizing = false
-let fixedLeft = 0
-let fixedTop = 0
+let currentResizeDir: ResizeDirection = 'se'
+let resizeStartX = 0
+let resizeStartY = 0
+let resizeStartLeft = 0
+let resizeStartTop = 0
+let resizeStartWidth = 0
+let resizeStartHeight = 0
 
 function getCardEl(): HTMLElement | null {
   return document.querySelector(`.${modalUniqueClass}`) as HTMLElement | null
@@ -65,8 +71,8 @@ function ensureFixedPosition(card: HTMLElement) {
     card.style.top = `${rect.top}px`
     card.style.margin = '0'
     card.style.transform = 'none'
-    card.style.width = `${Math.max(580, rect.width)}px`
-    card.style.height = `${Math.max(480, rect.height)}px`
+    card.style.width = `${Math.max(320, rect.width)}px`
+    card.style.height = `${Math.max(300, rect.height)}px`
   }
 }
 
@@ -118,8 +124,8 @@ function onDragMouseUp() {
   document.removeEventListener('mouseup', onDragMouseUp)
 }
 
-// 右下角拖动变形：左边和上边锁定不动，向右和向下拖动改变宽高 (保证最小 580x480 防挤压)
-function handleResizeMouseDown(e: MouseEvent) {
+// 8 方向拉伸按下：记录起始点并锁定反向锚点
+function handleResizeStart(dir: ResizeDirection, e: MouseEvent) {
   if (props.resizable === false || isMaximized.value)
     return
   const card = getCardEl()
@@ -129,10 +135,30 @@ function handleResizeMouseDown(e: MouseEvent) {
   ensureFixedPosition(card)
 
   isResizing = true
+  currentResizeDir = dir
+  resizeStartX = e.clientX
+  resizeStartY = e.clientY
+
   const rect = card.getBoundingClientRect()
-  fixedLeft = rect.left
-  fixedTop = rect.top
+  resizeStartLeft = parseFloat(card.style.left) || rect.left
+  resizeStartTop = parseFloat(card.style.top) || rect.top
+  resizeStartWidth = parseFloat(card.style.width) || rect.width
+  resizeStartHeight = parseFloat(card.style.height) || rect.height
   card.style.transition = 'none'
+
+  // 全局防文本选中并锁定对应光标
+  document.body.style.userSelect = 'none'
+  const cursorMap: Record<ResizeDirection, string> = {
+    n: 'ns-resize',
+    s: 'ns-resize',
+    e: 'ew-resize',
+    w: 'ew-resize',
+    ne: 'nesw-resize',
+    sw: 'nesw-resize',
+    nw: 'nwse-resize',
+    se: 'nwse-resize',
+  }
+  document.body.style.cursor = cursorMap[dir]
 
   document.addEventListener('mousemove', onResizeMouseMove)
   document.addEventListener('mouseup', onResizeMouseUp)
@@ -147,20 +173,57 @@ function onResizeMouseMove(e: MouseEvent) {
   if (!card)
     return
 
-  // 左上角严格固定在 (fixedLeft, fixedTop)，最小尺寸防御 320x300
-  const newWidth = Math.max(320, Math.min(window.innerWidth - fixedLeft - 10, e.clientX - fixedLeft))
-  const newHeight = Math.max(300, Math.min(window.innerHeight - fixedTop - 10, e.clientY - fixedTop))
+  const dx = e.clientX - resizeStartX
+  const dy = e.clientY - resizeStartY
+  const startRight = resizeStartLeft + resizeStartWidth
+  const startBottom = resizeStartTop + resizeStartHeight
+  const minWidth = 320
+  const minHeight = 300
 
+  let newWidth = resizeStartWidth
+  let newHeight = resizeStartHeight
+  let newLeft = resizeStartLeft
+  let newTop = resizeStartTop
+
+  // 1. 水平方向缩放与锚定计算
+  if (currentResizeDir.includes('e')) {
+    // 东（E/NE/SE）：左边严格不动，调整宽度
+    newWidth = Math.max(minWidth, Math.min(window.innerWidth - resizeStartLeft - 10, resizeStartWidth + dx))
+  }
+  else if (currentResizeDir.includes('w')) {
+    // 西（W/NW/SW）：右边绝对固定在 startRight，计算新宽度与新 left
+    newWidth = Math.min(startRight - 10, Math.max(minWidth, resizeStartWidth - dx))
+    newLeft = startRight - newWidth
+  }
+
+  // 2. 垂直方向缩放与锚定计算
+  if (currentResizeDir.includes('s')) {
+    // 南（S/SE/SW）：上边严格不动，调整高度
+    newHeight = Math.max(minHeight, Math.min(window.innerHeight - resizeStartTop - 10, resizeStartHeight + dy))
+  }
+  else if (currentResizeDir.includes('n')) {
+    // 北（N/NE/NW）：底边绝对固定在 startBottom，计算新高度与新 top
+    newHeight = Math.min(startBottom - 10, Math.max(minHeight, resizeStartHeight - dy))
+    newTop = startBottom - newHeight
+  }
+
+  // 直接批量应用，保证极致流畅
   card.style.width = `${newWidth}px`
   card.style.height = `${newHeight}px`
+  card.style.left = `${newLeft}px`
+  card.style.top = `${newTop}px`
   card.style.maxWidth = '99vw'
   card.style.maxHeight = '99vh'
 }
 
 function onResizeMouseUp() {
-  isResizing = false
-  document.removeEventListener('mousemove', onResizeMouseMove)
-  document.removeEventListener('mouseup', onResizeMouseUp)
+  if (isResizing) {
+    isResizing = false
+    document.body.style.userSelect = ''
+    document.body.style.cursor = ''
+    document.removeEventListener('mousemove', onResizeMouseMove)
+    document.removeEventListener('mouseup', onResizeMouseUp)
+  }
 }
 
 // 最大化与还原切换
@@ -269,18 +332,35 @@ watch(
             }
           }
 
-          // 添加右下角拉伸缩放手柄
-          if (!card.querySelector('.custom-modal-resizer')) {
-            const resizer = document.createElement('div')
-            resizer.className = 'custom-modal-resizer'
-            resizer.title = '向右下拖拽调整窗口大小 (左上固定)'
-            resizer.innerHTML = `
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M11 1L1 11M11 6L6 11M11 11L11 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-              </svg>
-            `
-            resizer.addEventListener('mousedown', handleResizeMouseDown)
-            card.appendChild(resizer)
+          // 挂载原生桌面级 8 方向缩放手柄 (E, W, S, N, NE, NW, SE, SW)
+          if (props.resizable !== false && !card.querySelector('.modal-resize-handle')) {
+            const directions: { dir: ResizeDirection; title: string }[] = [
+              { dir: 'n', title: '上下拖动调整高度 (底边锁定)' },
+              { dir: 's', title: '上下拖动调整高度 (顶边锁定)' },
+              { dir: 'w', title: '左右拖动调整宽度 (右边锁定)' },
+              { dir: 'e', title: '左右拖动调整宽度 (左边锁定)' },
+              { dir: 'nw', title: '拖动对角调整大小 (右下锁定)' },
+              { dir: 'ne', title: '拖动对角调整大小 (左下锁定)' },
+              { dir: 'sw', title: '拖动对角调整大小 (右上锁定)' },
+              { dir: 'se', title: '拖动对角调整大小 (左上锁定)' },
+            ]
+
+            directions.forEach(({ dir, title }) => {
+              const handle = document.createElement('div')
+              handle.className = `modal-resize-handle modal-resize-${dir}`
+              handle.title = title
+              if (dir === 'se') {
+                handle.innerHTML = `
+                  <div class="custom-modal-resizer-icon">
+                    <svg width="11" height="11" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M11 1L1 11M11 6L6 11M11 11L11 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                    </svg>
+                  </div>
+                `
+              }
+              handle.addEventListener('mousedown', (e) => handleResizeStart(dir, e))
+              card.appendChild(handle)
+            })
           }
         }, 100)
       })
@@ -422,25 +502,110 @@ onBeforeUnmount(() => {
   color: #63e2b7;
 }
 
-.custom-modal-resizer {
+/* 8 方向自由缩放手柄 (原生桌面级交互) */
+.modal-resize-handle {
   position: absolute;
-  right: 4px;
-  bottom: 4px;
+  box-sizing: border-box;
+  user-select: none;
+  z-index: 100;
+  touch-action: none;
+}
+
+/* 4 条主边框 handle (感应区域 8px，居中透明，不干扰内部交互) */
+.modal-resize-n {
+  top: 0;
+  left: 14px;
+  right: 14px;
+  height: 8px;
+  cursor: ns-resize;
+}
+
+.modal-resize-s {
+  bottom: 0;
+  left: 14px;
+  right: 14px;
+  height: 8px;
+  cursor: ns-resize;
+}
+
+.modal-resize-w {
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 8px;
+  cursor: ew-resize;
+}
+
+.modal-resize-e {
+  right: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 8px;
+  cursor: ew-resize;
+}
+
+/* 4 个对角 handle (16px x 16px，更高层级，对准四角) */
+.modal-resize-nw {
+  top: 0;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  z-index: 102;
+}
+
+.modal-resize-ne {
+  top: 0;
+  right: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nesw-resize;
+  z-index: 102;
+}
+
+.modal-resize-sw {
+  bottom: 0;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nesw-resize;
+  z-index: 102;
+}
+
+.modal-resize-se {
+  bottom: 0;
+  right: 0;
   width: 18px;
   height: 18px;
   cursor: nwse-resize;
+  z-index: 102;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+}
+
+/* 右下角视觉图标 */
+.custom-modal-resizer-icon {
+  width: 14px;
+  height: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
   opacity: 0.45;
   transition: opacity 0.2s, color 0.2s;
-  z-index: 99;
   color: #888;
-  user-select: none;
+  pointer-events: none;
+  margin-right: 3px;
+  margin-bottom: 3px;
 }
 
-.custom-modal-resizer:hover {
+.modal-resize-se:hover .custom-modal-resizer-icon {
   opacity: 1;
   color: #18a058;
+}
+
+/* 弹窗最大化时隐藏所有手柄 */
+.is-maximized .modal-resize-handle {
+  display: none !important;
 }
 </style>
