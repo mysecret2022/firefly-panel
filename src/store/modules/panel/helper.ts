@@ -17,6 +17,7 @@ export function defaultStatePanelConfig(): Panel.panelConfig {
     logoText: 'Firefly-panel',
     logoImageSrc: '',
     clockShowSecond: false,
+    headerOpacity: 85, // 默认 85% 半透明度
     searchBoxShow: false,
     searchBoxSearchIcon: false,
     marginBottom: 10,

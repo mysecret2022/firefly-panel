@@ -79,7 +79,7 @@ function resetPanelConfig() {
   <div class="bg-slate-200 dark:bg-zinc-900 rounded-[10px] p-[8px] overflow-auto">
     <NCard style="border-radius:10px" size="small">
       <div class="text-slate-500 mb-[5px] font-bold">
-        LOGO
+        LOGO 与时钟组件
       </div>
 
       <div>
@@ -89,6 +89,21 @@ function resetPanelConfig() {
         <div class="flex items-center mt-[5px]">
           <NInput v-model:value="panelState.panelConfig.logoText" type="text" show-count :maxlength="20" placeholder="请输入文字" />
         </div>
+      </div>
+
+      <!-- 顶部 LOGO 与时钟透明度调节滑块 -->
+      <div class="mt-4 pt-3 border-t border-slate-100 dark:border-zinc-800">
+        <div class="flex items-center justify-between text-xs text-slate-500 dark:text-zinc-400 mb-1">
+          <span>LOGO 与时钟透明度:</span>
+          <span class="font-mono font-semibold">{{ panelState.panelConfig.headerOpacity ?? 85 }}%</span>
+        </div>
+        <NSlider
+          v-model:value="panelState.panelConfig.headerOpacity"
+          :min="20"
+          :max="100"
+          :step="5"
+          :format-tooltip="(v: number) => `${v}%`"
+        />
       </div>
     </NCard>
 

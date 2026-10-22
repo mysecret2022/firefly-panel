@@ -146,62 +146,130 @@ function handleChangeLanuage(value: Language) {
   </div>
 </template>
 
-  <style>
-    .login-container {
-        padding: 20px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        width: 100vw;
-        background: url('@/assets/firefly.webp') no-repeat center center;
-        background-size: cover;
-        position: relative;
-    }
+<style>
+.login-container {
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    width: 100vw;
+    background: url('@/assets/firefly.webp') no-repeat center center;
+    background-size: cover;
+    position: relative;
+}
 
-    .login-card {
-        margin: 20px;
-        min-width: 380px;
-        max-width: 450px;
-        border-radius: 24px !important;
-        background: rgba(255, 255, 255, 0.55) !important;
-        backdrop-filter: blur(24px) saturate(180%) !important;
-        -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
-        border: 1px solid rgba(255, 255, 255, 0.45) !important;
-        box-shadow: 0 20px 45px rgba(0, 0, 0, 0.18), inset 0 1px 1px rgba(255, 255, 255, 0.6) !important;
-    }
-
-    /* 夜间模式 */
-    .dark .login-card {
-        background: rgba(20, 20, 26, 0.62) !important;
-        border: 1px solid rgba(255, 255, 255, 0.12) !important;
-        box-shadow: 0 20px 45px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.15) !important;
-    }
-
-    @media (min-width: 600px) {
-        .login-card {
-            width: auto;
-            margin: 0px 10px;
-        }
-        .login-button {
-            width: 100%;
-        }
-    }
-
-  .login-title{
-    text-align: center;
+/* VisionOS 悬浮极光毛玻璃卡片核心样式 */
+.login-card {
     margin: 20px;
-  }
+    min-width: 380px;
+    max-width: 440px;
+    border-radius: 28px !important;
+    position: relative;
+    overflow: hidden;
+    
+    /* 高透磨砂质感 */
+    background: rgba(18, 22, 34, 0.65) !important;
+    backdrop-filter: blur(32px) saturate(210%) !important;
+    -webkit-backdrop-filter: blur(32px) saturate(210%) !important;
+    
+    /* 极光双层微光边框与悬浮高光深度投影 */
+    border: 1px solid rgba(255, 255, 255, 0.22) !important;
+    box-shadow: 
+        0 30px 60px -12px rgba(0, 0, 0, 0.55),
+        0 0 50px -10px rgba(99, 242, 201, 0.25),
+        0 0 35px -8px rgba(251, 191, 36, 0.18),
+        inset 0 1.5px 2px rgba(255, 255, 255, 0.55),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.15) !important;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
 
-  /* 输入内容或点击聚焦时，占位提示汉字瞬间物理消失，绝不残留任何残影 */
-  .login-card .n-input--focus .n-input__placeholder,
-  .login-card .n-input.n-input--focus .n-input__placeholder,
-  .login-card .n-input:focus-within .n-input__placeholder,
-  .login-card input:focus::placeholder,
-  .login-card input:not(:placeholder-shown)::placeholder {
+/* 极光环形边缘折射伪元素 */
+.login-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 28px;
+    padding: 1.5px;
+    background: linear-gradient(
+        135deg, 
+        rgba(255, 255, 255, 0.7) 0%, 
+        rgba(99, 242, 201, 0.55) 30%, 
+        rgba(251, 191, 36, 0.45) 60%, 
+        rgba(167, 139, 250, 0.55) 100%
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    opacity: 0.85;
+}
+
+/* 白天浅色模式适配 */
+html:not(.dark) .login-card {
+    background: rgba(255, 255, 255, 0.62) !important;
+    box-shadow: 
+        0 25px 50px -12px rgba(0, 0, 0, 0.22),
+        0 0 45px -10px rgba(99, 242, 201, 0.3),
+        inset 0 1.5px 2px rgba(255, 255, 255, 0.8) !important;
+}
+
+.login-title {
+    text-align: center;
+    margin: 20px 0 24px 0;
+}
+
+/* 标题半透明透光渐变 */
+.login-title .n-gradient-text {
+    background: linear-gradient(180deg, #ffffff 0%, rgba(255, 255, 255, 0.72) 100%) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    text-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+    filter: drop-shadow(0 2px 8px rgba(99, 242, 201, 0.35));
+}
+
+/* 玻璃质感输入框 */
+.login-card .n-input {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border-radius: 14px !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    backdrop-filter: blur(10px) !important;
+    transition: all 0.25s ease !important;
+}
+
+.login-card .n-input--focus,
+.login-card .n-input:focus-within {
+    border-color: rgba(99, 242, 201, 0.75) !important;
+    box-shadow: 0 0 16px rgba(99, 242, 201, 0.35) !important;
+    background: rgba(255, 255, 255, 0.14) !important;
+}
+
+/* 极光微光登录按钮 */
+.login-card .n-button--primary-type {
+    border-radius: 14px !important;
+    background: linear-gradient(135deg, #10b981 0%, #059669 50%, #0d9488 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4) !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.05em !important;
+}
+
+@media (min-width: 600px) {
+    .login-card {
+        width: 420px;
+        margin: 0px 10px;
+    }
+}
+
+/* 输入内容或点击聚焦时占位提示消失 */
+.login-card .n-input--focus .n-input__placeholder,
+.login-card .n-input.n-input--focus .n-input__placeholder,
+.login-card .n-input:focus-within .n-input__placeholder,
+.login-card input:focus::placeholder,
+.login-card input:not(:placeholder-shown)::placeholder {
     display: none !important;
     opacity: 0 !important;
     visibility: hidden !important;
     color: transparent !important;
-  }
-  </style>
+}
+</style>

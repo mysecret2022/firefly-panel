@@ -342,18 +342,21 @@ function handleAddItem(itemIconGroupId?: number) {
           maxWidth: (panelState.panelConfig.maxWidth ?? '1200') + panelState.panelConfig.maxWidthUnit,
         }"
       >
-        <!-- 头 -->
+        <!-- 头部 LOGO 与时钟 (支持动态透明度调节) -->
         <div class="mx-[auto] w-[80%]">
-          <div class="flex mx-[auto] items-center justify-center text-white">
+          <div 
+            class="flex mx-[auto] items-center justify-center transition-opacity duration-300"
+            :style="{ opacity: ((panelState.panelConfig.headerOpacity ?? 85) / 100) }"
+          >
             <div class="logo">
-              <span class="text-2xl md:text-6xl font-bold text-shadow">
+              <span class="text-2xl md:text-6xl font-bold ios27-glass-text select-none">
                 {{ panelState.panelConfig.logoText }}
               </span>
             </div>
-            <div class="divider text-base lg:text-2xl mx-[10px]">
+            <div class="divider text-base lg:text-2xl mx-[12px] ios27-glass-divider select-none">
               |
             </div>
-            <div class="text-shadow">
+            <div class="ios27-glass-text">
               <Clock :hide-second="!panelState.panelConfig.clockShowSecond" />
             </div>
           </div>
@@ -621,6 +624,22 @@ html {
 
 .text-shadow {
   text-shadow: 2px 2px 50px rgb(0, 0, 0);
+}
+
+.ios27-glass-text {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.55) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(255, 255, 255, 0.4);
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.28));
+  letter-spacing: -0.02em;
+  transition: all 0.3s ease;
+}
+
+.ios27-glass-divider {
+  color: rgba(255, 255, 255, 0.4);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  font-weight: 200;
 }
 
 .footer:empty, .footer > div:empty {

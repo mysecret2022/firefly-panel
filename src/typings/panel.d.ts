@@ -48,6 +48,7 @@ declare namespace Panel {
         logoImageSrc?:string
         clockShowSecond?:boolean
         clockColor?:string
+        headerOpacity?:number // 顶部 LOGO 与时钟的透明度 (20~100)
         searchBoxShow?:boolean
         searchBoxSearchIcon?:boolean
         marginTop?:number
