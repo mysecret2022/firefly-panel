@@ -77,11 +77,13 @@ const form = ref<CloudStorageConfig>({
   },
 })
 
-// 仓库公私检测结果
-const repoCheckResult = ref<{ tested: boolean; isPrivate: boolean; desc: string }>({
+// 连通性测试与公私属性状态存储
+const connectionStatus = ref<{
+  tested: boolean
+  isPrivate?: boolean
+  description?: string
+}>({
   tested: false,
-  isPrivate: false,
-  desc: '',
 })
 
 // 备份与图片列表
@@ -191,20 +193,28 @@ async function handleTestConnection() {
   try {
     const res: any = await testCloudConnection(form.value)
     if (res.code === 0 && res.data) {
-      repoCheckResult.value = {
+      connectionStatus.value = {
         tested: true,
         isPrivate: res.data.isPrivate,
-        desc: res.data.description,
+        description: res.data.description, // 保留“私有安全仓库 (Private)”或“公开仓库 (Public)”
       }
-      ms.success(res.data.message || `连接测试成功: ${res.data.description}`)
+      ms.success(`连接测试成功: ${res.data.description || '配置正常'}`)
     }
     else {
-      repoCheckResult.value.tested = false
+      connectionStatus.value = {
+        tested: true,
+        isPrivate: undefined,
+        description: '连接失败',
+      }
       ms.error(`连接失败: ${res.msg || '无法连接到存储后端'}`)
     }
   }
   catch (error: any) {
-    repoCheckResult.value.tested = false
+    connectionStatus.value = {
+      tested: true,
+      isPrivate: undefined,
+      description: '连接异常',
+    }
     ms.error(`连接错误: ${error.message || '请检查配置参数'}`)
   }
   finally {
@@ -871,20 +881,78 @@ onMounted(() => {
           </NCard>
         </NTabPane>
 
-        <!-- 第 3 页: 存储配置 (还原为最初设计) -->
+        <!-- 第 3 页: 存储配置 -->
         <NTabPane name="config" tab="⚙️ 存储配置" class="h-full flex flex-col flex-1 min-h-0">
           <div class="cloud-tab-scroll-body flex-1 min-h-0 overflow-y-auto pr-1">
-            <NCard title="云存储引擎配置" size="small" class="mt-1 shadow-sm rounded-lg" content-style="display: flex; flex-direction: column; justify-content: flex-start; gap: 16px;">
+            <NCard title="多端漫游与云端存储接入" size="small" class="mt-1 shadow-sm rounded-lg" content-style="display: flex; flex-direction: column; justify-content: flex-start; gap: 16px;">
               <template #header-extra>
-                <NTag v-if="repoCheckResult.tested" :type="repoCheckResult.isPrivate ? 'success' : 'warning'" round size="small">
-                  {{ repoCheckResult.isPrivate ? '私有安全仓库 (Private)' : '公开仓库 (Public - 需加密)' }}
-                </NTag>
-                <NTag v-else type="default" round size="small">
-                  未测试连通性
-                </NTag>
+                <NSpace align="center">
+                  <span class="text-xs text-slate-500 font-medium">启用云同步与双写:</span>
+                  <NSwitch v-model:value="form.enabled" />
+                </NSpace>
               </template>
 
-              <!-- 核心双写开关 (紧凑流式排版 + 气泡提示 + 锁定自适应无拉伸) -->
+              <!-- 顶栏横向同一排：左侧存储引擎单选，右侧连通性测试按钮与私有/公开探测状态 -->
+              <div class="mb-2 p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-lg border border-slate-200 dark:border-zinc-700 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <!-- 左侧：云存储引擎配置 -->
+                <div class="flex items-center gap-3">
+                  <span class="text-xs font-semibold text-slate-700 dark:text-zinc-200 whitespace-nowrap">存储引擎:</span>
+                  <NRadioGroup v-model:value="form.type" size="small">
+                    <NRadio value="github">
+                      GitHub 仓库
+                    </NRadio>
+                    <NRadio value="r2">
+                      Cloudflare R2
+                    </NRadio>
+                  </NRadioGroup>
+                </div>
+
+                <!-- 右侧：测试连通性按钮及私有/公开仓库状态标签 -->
+                <div class="flex items-center gap-2">
+                  <template v-if="connectionStatus.tested">
+                    <NTag
+                      v-if="connectionStatus.isPrivate === true"
+                      type="warning"
+                      size="small"
+                      round
+                    >
+                      🔒 私有安全仓库 (Private)
+                    </NTag>
+                    <NTag
+                      v-else-if="connectionStatus.isPrivate === false"
+                      type="info"
+                      size="small"
+                      round
+                    >
+                      🌐 公开图床仓库 (Public)
+                    </NTag>
+                    <NTag
+                      v-else
+                      type="error"
+                      size="small"
+                      round
+                    >
+                      ⚠️ 连接异常
+                    </NTag>
+                  </template>
+
+                  <NButton :loading="testLoading" size="small" secondary type="info" @click="handleTestConnection">
+                    <template #icon>
+                      <SvgIcon icon="material-symbols:network-check" />
+                    </template>
+                    测试连通性
+                  </NButton>
+
+                  <NButton :loading="saveLoading" size="small" type="primary" @click="handleSaveConfig">
+                    <template #icon>
+                      <SvgIcon icon="material-symbols:save-outline" />
+                    </template>
+                    保存设置
+                  </NButton>
+                </div>
+              </div>
+
+              <!-- 核心双写说明卡片 (紧凑流式排版 + 气泡提示 + 锁定自适应无拉伸) -->
               <div class="dual-write-setting-item px-3 py-2 bg-slate-50/90 dark:bg-zinc-800/80 rounded-lg border border-slate-200/80 dark:border-zinc-700/60">
                 <div class="min-w-0 flex-1">
                   <!-- 第一行: 图标 + 标题 + 默认关闭状态 + Tooltip 提示 -->
@@ -911,16 +979,6 @@ onMounted(() => {
 
               <!-- 驱动选择 -->
               <NForm label-placement="left" label-width="130" size="small" class="cloud-config-form">
-              <NFormItem label="云存储平台">
-                <NRadioGroup v-model:value="form.type">
-                  <NRadio value="github">
-                    GitHub 仓库 (免费·支持 jsdelivr CDN)
-                  </NRadio>
-                  <NRadio value="r2">
-                    Cloudflare R2 (S3 兼容·每月 10GB 免费)
-                  </NRadio>
-                </NRadioGroup>
-              </NFormItem>
 
               <!-- GitHub 配置项 -->
               <div v-if="form.type === 'github'" class="space-y-3 bg-zinc-50 dark:bg-zinc-900/40 p-3 rounded-lg border border-slate-100 dark:border-zinc-800">
@@ -1002,14 +1060,8 @@ onMounted(() => {
                 </NFormItem>
               </div>
 
-              <!-- 按钮行 -->
-              <div class="mt-4 flex justify-end gap-3">
-                <NButton :loading="testLoading" secondary type="info" @click="handleTestConnection">
-                  <template #icon>
-                    <SvgIcon icon="material-symbols:network-check" />
-                  </template>
-                  测试连接与探测属性
-                </NButton>
+              <!-- 底部保存按钮 -->
+              <div class="mt-4 flex justify-end">
                 <NButton :loading="saveLoading" type="primary" @click="handleSaveConfig">
                   <template #icon>
                     <SvgIcon icon="material-symbols:save-outline" />

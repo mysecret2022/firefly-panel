@@ -171,6 +171,7 @@ func (a *CloudStorageApi) UploadEncryptedBackup(c *gin.Context) {
 	global.Db.Find(&backup.UserConfigs)
 	global.Db.Find(&backup.SystemSettings)
 	global.Db.Find(&backup.ModuleConfigs)
+	global.Db.Find(&backup.Files) // 补充读取图片数据
 
 	jsonData, err := json.MarshalIndent(backup, "", "  ")
 	if err != nil {
@@ -470,8 +471,9 @@ func (a *CloudStorageApi) SyncImageToLocal(c *gin.Context) {
 	})
 }
 
-// SyncAllImagesToLocal 一键将云端所有图片全部下载回本地存储
+// SyncAllImagesToLocal 一键将云端所有图片全部下载回本地存储并注册入库
 func (a *CloudStorageApi) SyncAllImagesToLocal(c *gin.Context) {
+	userInfo, _ := base.GetCurrentUserInfo(c)
 	cfg, err := getStorageConfig()
 	if err != nil {
 		apiReturn.Error(c, "读取存储配置失败")
@@ -483,10 +485,21 @@ func (a *CloudStorageApi) SyncAllImagesToLocal(c *gin.Context) {
 		return
 	}
 
-	items, err := client.ListFiles("images")
-	if err != nil {
-		apiReturn.Error(c, "获取云端图片列表失败: "+err.Error())
-		return
+	// 扫描所有图片目录
+	dirs := []string{"images", "images/wallpapers", "images/icons"}
+	var allItems []cloudClient.FileItem
+	seen := make(map[string]bool)
+
+	for _, d := range dirs {
+		subItems, err := client.ListFiles(d)
+		if err == nil {
+			for _, it := range subItems {
+				if !it.IsDirectory && !seen[it.Path] {
+					seen[it.Path] = true
+					allItems = append(allItems, it)
+				}
+			}
+		}
 	}
 
 	sourcePath := global.Config.GetValueString("base", "source_path")
@@ -497,25 +510,63 @@ func (a *CloudStorageApi) SyncAllImagesToLocal(c *gin.Context) {
 	_ = os.MkdirAll(targetDir, 0755)
 
 	syncedCount := 0
-	for _, it := range items {
-		if it.IsDirectory {
+	imageExts := []string{".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".ico"}
+
+	for _, it := range allItems {
+		ext := strings.ToLower(path.Ext(it.Name))
+		isImg := false
+		for _, e := range imageExts {
+			if ext == e {
+				isImg = true
+				break
+			}
+		}
+		if !isImg {
 			continue
 		}
+
 		cleanName := path.Base(it.Name)
-		data, err := client.DownloadFile(path.Join("images", cleanName))
-		if err != nil {
+		data, err := client.DownloadFile(it.Path)
+		if err != nil || len(data) == 0 {
 			continue
 		}
 		destPath := filepath.Join(targetDir, cleanName)
-		if err := os.WriteFile(destPath, data, 0644); err == nil {
-			syncedCount++
+		if err := os.WriteFile(destPath, data, 0644); err != nil {
+			continue
 		}
+
+		// 判定分类 (0: 壁纸, 1: 应用图标)
+		fileType := 0
+		if strings.Contains(it.Path, "icons") {
+			fileType = 1
+		}
+
+		// 写入本地数据库 file 表，使图片管理模块立即显示
+		var existFile models.File
+		dbSrc := "./" + filepath.ToSlash(destPath)
+		if err := global.Db.Where("file_name = ? OR src = ?", cleanName, dbSrc).First(&existFile).Error; err != nil {
+			newFile := models.File{
+				UserId:     userInfo.ID,
+				FileName:   cleanName,
+				Src:        dbSrc,
+				Ext:        ext,
+				FileType:   fileType,
+				SyncStatus: 2, // 2: 已同步云端
+			}
+			global.Db.Create(&newFile)
+		} else {
+			global.Db.Model(&existFile).Updates(map[string]interface{}{
+				"sync_status": 2,
+				"src":         dbSrc,
+			})
+		}
+		syncedCount++
 	}
 
 	apiReturn.SuccessData(c, gin.H{
-		"total":       len(items),
+		"total":       len(allItems),
 		"syncedCount": syncedCount,
-		"message":     fmt.Sprintf("同步完成！共发现 %d 张云端图片，已成功同步 %d 张到本地存储", len(items), syncedCount),
+		"message":     fmt.Sprintf("同步完成！共拉取并注册 %d 张图片到本地图库管理中", syncedCount),
 	})
 }
 

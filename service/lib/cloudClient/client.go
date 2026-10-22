@@ -202,7 +202,8 @@ func (g *GitHubClient) DownloadFile(relativePath string) ([]byte, error) {
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+g.Config.Token)
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	// 使用 raw 格式直接拉取二进制流，彻底解决 >1MB 文件返回空内容导致的解密失败
+	req.Header.Set("Accept", "application/vnd.github.v3.raw")
 
 	resp, err := g.client.Do(req)
 	if err != nil {
@@ -211,19 +212,11 @@ func (g *GitHubClient) DownloadFile(relativePath string) ([]byte, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("获取文件失败 (%d)", resp.StatusCode)
+		b, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("获取文件失败 (%d): %s", resp.StatusCode, string(b))
 	}
 
-	var contentResp struct {
-		Encoding string `json:"encoding"`
-		Content  string `json:"content"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&contentResp); err != nil {
-		return nil, err
-	}
-
-	cleanContent := strings.ReplaceAll(contentResp.Content, "\n", "")
-	return base64.StdEncoding.DecodeString(cleanContent)
+	return io.ReadAll(resp.Body)
 }
 
 // ListFiles 列出指定目录下的文件列表

@@ -33,6 +33,7 @@ type SiteBackupData struct {
 	UserConfigs    []models.UserConfig    `json:"userConfigs"`
 	SystemSettings []models.SystemSetting `json:"systemSettings,omitempty"`
 	ModuleConfigs  []models.ModuleConfig  `json:"moduleConfigs,omitempty"`
+	Files          []models.File          `json:"files,omitempty"` // 完整包含图库记录
 }
 
 // ExportBackup 导出全站备份 (ZIP 完整封包后下载)
@@ -55,6 +56,7 @@ func (b *BackupApi) ExportBackup(c *gin.Context) {
 	global.Db.Find(&backup.UserConfigs)
 	global.Db.Find(&backup.SystemSettings)
 	global.Db.Find(&backup.ModuleConfigs)
+	global.Db.Find(&backup.Files) // 完整包含图库记录
 
 	// 补全 GORM 忽略字段，防止导出空数据
 	for i := range backup.ItemIcons {
@@ -139,10 +141,12 @@ func (b *BackupApi) ExportJson(c *gin.Context) {
 		global.Db.Find(&backup.UserConfigs)
 		global.Db.Find(&backup.SystemSettings)
 		global.Db.Find(&backup.ModuleConfigs)
+		global.Db.Find(&backup.Files)
 	} else {
 		global.Db.Where("user_id = ?", userInfo.ID).Find(&backup.ItemIconGroups)
 		global.Db.Where("user_id = ?", userInfo.ID).Find(&backup.ItemIcons)
 		global.Db.Where("user_id = ?", userInfo.ID).Find(&backup.UserConfigs)
+		global.Db.Where("user_id = ?", userInfo.ID).Find(&backup.Files)
 	}
 
 	apiReturn.SuccessData(c, backup)
@@ -398,6 +402,13 @@ func applyDatabaseRestore(data SiteBackupData, currentUser models.User) error {
 					mc.ValueJson = string(b)
 				}
 				tx.Create(&mc)
+			}
+		}
+
+		if len(data.Files) > 0 {
+			tx.Exec("DELETE FROM file")
+			for _, f := range data.Files {
+				tx.Create(&f)
 			}
 		}
 	} else {
