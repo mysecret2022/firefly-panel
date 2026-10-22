@@ -330,42 +330,55 @@ onBeforeUnmount(() => {
 </template>
 
 <style>
+/* 1. 最外层弹窗容器：挂载背景色与 Flexbox 纵向布局 */
 .draggable-resizable-modal {
   display: flex !important;
   flex-direction: column !important;
-  box-sizing: border-box;
+  box-sizing: border-box !important;
   backdrop-filter: blur(20px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
-  background-color: rgba(255, 255, 255, 0.92) !important;
+  background-color: rgba(255, 255, 255, 0.94) !important;
+  background-size: cover !important;
+  background-repeat: no-repeat !important;
   border: 1px solid rgba(255, 255, 255, 0.4) !important;
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.15), 0 0 1px rgba(0, 0, 0, 0.1) !important;
   overflow: hidden !important;
 }
 
 .dark .draggable-resizable-modal {
-  background-color: rgba(24, 24, 28, 0.90) !important;
+  background-color: rgba(24, 24, 28, 0.92) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4) !important;
 }
 
-/* 消除子容器多余空白，自适应撑满 */
-.draggable-resizable-modal .n-card__content {
-  flex: 1 1 100% !important;
-  min-height: 0 !important;
-  height: 100% !important;
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
-  padding: 0.5rem !important;
+/* 2. 顶部 Header / 底部 Footer 容器锁定固定高度，防止被压缩 */
+.draggable-resizable-modal .n-card-header,
+.draggable-resizable-modal .n-card__footer,
+.draggable-resizable-modal .n-card__action {
+  flex-shrink: 0 !important;
 }
 
-/* 强制内部子组件与卡片容器 100% 充满弹窗剩余高度，根除底部死角留白 */
-.draggable-resizable-modal .n-card__content > * {
-  flex: 1 1 100% !important;
+/* 3. 中间内容容器移除写死固定高度，改为 flex: 1; min-height: 0; 吸收全部垂直空间，内部独立滚动 */
+.draggable-resizable-modal .n-card__content {
+  flex: 1 1 0% !important;
   min-height: 0 !important;
-  height: 100% !important;
+  height: auto !important;
   display: flex !important;
   flex-direction: column !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 0.5rem !important;
+  box-sizing: border-box !important;
+}
+
+/* 4. 清理继承约束：强制直属子内容容器自适应撑满父级剩余空间 */
+.draggable-resizable-modal .n-card__content > * {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  height: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-sizing: border-box !important;
 }
 
 /* 头部最大化按钮 */

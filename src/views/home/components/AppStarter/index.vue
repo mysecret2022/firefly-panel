@@ -143,58 +143,51 @@ onUnmounted(() => {
           </div>
         </div>
       </template>
-      <div class="w-full h-full app-starter-modal-content">
-        <NSpace vertical size="large" style="height: 100%;width: 100%;">
-          <NLayout has-sider style="border-radius:0.75rem;">
-            <NLayoutSider
-              v-model:collapsed="collapsed"
-              collapse-mode="width"
-              :collapsed-width="0"
-              :width="isSmallScreen ? '100%' : 240"
-              style="height: 100%;"
-              content-style="overflow: hidden"
-            >
-              <div class="w-full h-full dark:bg-[#2c2c32]">
+      <div class="w-full h-full app-starter-modal-content flex flex-col flex-1 min-h-0">
+        <NLayout has-sider style="border-radius:0.75rem;" class="h-full flex-1 flex min-h-0">
+          <NLayoutSider
+            v-model:collapsed="collapsed"
+            collapse-mode="width"
+            :collapsed-width="0"
+            :width="isSmallScreen ? '100%' : 240"
+            class="h-full flex flex-col min-h-0"
+            content-style="overflow: hidden; height: 100%; display: flex; flex-direction: column;"
+          >
+            <div class="w-full h-full dark:bg-[#2c2c32] flex flex-col flex-1 min-h-0">
+              <div
+                class="p-[5px] bg-slate-200 dark:bg-zinc-900 rounded-xl overflow-y-auto flex-1 min-h-0"
+                :style="{
+                  width: isSmallScreen ? '100%' : '220px',
+                  minWidth: '200px',
+                }"
+              >
                 <div
-                  class="p-[5px] bg-slate-200 dark:bg-zinc-900 rounded-xl overflow-auto"
-                  :style="{
-                    width: isSmallScreen ? '100%' : '220px',
-                    minWidth: '200px',
-                    height,
-                  }"
+                  v-for=" (item, index) in apps"
+                  :key="index"
+                  :style="{ color: componentName === item.componentName ? 'var(--n-color-target)' : '' }"
+                  @click="handleClickApp(item)"
                 >
                   <div
-                    v-for=" (item, index) in apps"
-                    :key="index"
-                    :style="{ color: componentName === item.componentName ? 'var(--n-color-target)' : '' }"
-                    @click="handleClickApp(item)"
+                    class="bg-white dark:bg-zinc-800 p-[10px] rounded-lg mb-[5px] font-bold cursor-pointer flex items-center hover:bg-slate-50 focus:bg-slate-50"
                   >
-                    <div
-                      class="bg-white dark:bg-zinc-800 p-[10px] rounded-lg mb-[5px] font-bold cursor-pointer flex items-center hover:bg-slate-50 focus:bg-slate-50"
-                    >
-                      <div class="flex items-center justify-center">
-                        <div class="text-lg flex items-center justify-center w-[1.125rem] h-[1.125rem]">
-                          <img v-if="item.iconImg" :src="item.iconImg" class="w-full h-full object-contain" alt="" />
-                          <SvgIcon v-else :icon="item.icon" />
-                        </div>
-                        <span class="ml-2">{{ item.name }}</span>
+                    <div class="flex items-center justify-center">
+                      <div class="text-lg flex items-center justify-center w-[1.125rem] h-[1.125rem]">
+                        <img v-if="item.iconImg" :src="item.iconImg" class="w-full h-full object-contain" alt="" />
+                        <SvgIcon v-else :icon="item.icon" />
                       </div>
-                    <!-- 更多按钮 -->
-                    <!-- <div class="ml-auto">
-                      <SvgIcon icon="mingcute-more-1-fill" />
-                    </div> -->
+                      <span class="ml-2">{{ item.name }}</span>
                     </div>
                   </div>
                 </div>
               </div>
-            </NLayoutSider>
-            <NLayoutContent :content-style="{ height }">
-              <div class="rounded-2xl h-full overflow-auto transition-all duration-500 min-w-[300px] h-full" :class="(isSmallScreen && !collapsed) ? 'opacity-0' : 'opacity-100'">
-                <AppLoader :component-name="componentName" class="h-full" />
-              </div>
-            </NLayoutContent>
-          </NLayout>
-        </NSpace>
+            </div>
+          </NLayoutSider>
+          <NLayoutContent content-style="display: flex; flex-direction: column; min-height: 0; flex: 1; height: 100%;" class="h-full flex flex-col flex-1 min-h-0">
+            <div class="rounded-2xl h-full overflow-hidden transition-all duration-500 min-w-[300px] flex-1 flex flex-col min-h-0" :class="(isSmallScreen && !collapsed) ? 'opacity-0' : 'opacity-100'">
+              <AppLoader :component-name="componentName" class="h-full flex-1 flex flex-col min-h-0" />
+            </div>
+          </NLayoutContent>
+        </NLayout>
       </div>
     </RoundCardModal>
   </div>
