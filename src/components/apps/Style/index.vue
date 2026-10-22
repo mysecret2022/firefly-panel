@@ -96,9 +96,13 @@ function resetPanelConfig() {
       <div class="text-slate-500 mb-[5px] font-bold">
         {{ $t('apps.baseSettings.clock') }}
       </div>
-      <div class="flex items-center mt-[5px]">
-        <span class="mr-[10px]">{{ $t('apps.baseSettings.clockSecondShow') }}</span>
-        <NSwitch v-model:value="panelState.panelConfig.clockShowSecond" />
+      <div class="mt-[5px]">
+        <div>
+          {{ $t('apps.baseSettings.clockSecondShow') }}
+        </div>
+        <div class="flex items-center mt-[5px]">
+          <NSwitch v-model:value="panelState.panelConfig.clockShowSecond" />
+        </div>
       </div>
     </NCard>
 
@@ -106,13 +110,21 @@ function resetPanelConfig() {
       <div class="text-slate-500 mb-[5px] font-bold">
         {{ $t('apps.baseSettings.searchBar') }}
       </div>
-      <div class="flex items-center mt-[5px]">
-        <span class="mr-[10px]">{{ $t('common.show') }}</span>
-        <NSwitch v-model:value="panelState.panelConfig.searchBoxShow" />
+      <div class="mt-[5px]">
+        <div>
+          {{ $t('common.show') }}
+        </div>
+        <div class="flex items-center mt-[5px]">
+          <NSwitch v-model:value="panelState.panelConfig.searchBoxShow" />
+        </div>
       </div>
-      <div v-if="panelState.panelConfig.searchBoxShow" class="flex items-center mt-[5px]">
-        <span class="mr-[10px]">{{ $t('apps.baseSettings.searchBarSearchItem') }}</span>
-        <NSwitch v-model:value="panelState.panelConfig.searchBoxSearchIcon" />
+      <div v-if="panelState.panelConfig.searchBoxShow" class="mt-[5px]">
+        <div>
+          {{ $t('apps.baseSettings.searchBarSearchItem') }}
+        </div>
+        <div class="flex items-center mt-[5px]">
+          <NSwitch v-model:value="panelState.panelConfig.searchBoxSearchIcon" />
+        </div>
       </div>
     </NCard>
 
@@ -120,17 +132,29 @@ function resetPanelConfig() {
       <div class="text-slate-500 mb-[5px] font-bold">
         {{ $t('apps.baseSettings.systemMonitorStatus') }}
       </div>
-      <div class="flex items-center mt-[5px]">
-        <span class="mr-[10px]">{{ $t('common.show') }}</span>
-        <NSwitch v-model:value="panelState.panelConfig.systemMonitorShow" />
+      <div class="mt-[5px]">
+        <div>
+          {{ $t('common.show') }}
+        </div>
+        <div class="flex items-center mt-[5px]">
+          <NSwitch v-model:value="panelState.panelConfig.systemMonitorShow" />
+        </div>
       </div>
-      <div v-if="panelState.panelConfig.systemMonitorShow" class="flex items-center mt-[5px]">
-        <span class="mr-[10px]">{{ $t('apps.baseSettings.showTitle') }}</span>
-        <NSwitch v-model:value="panelState.panelConfig.systemMonitorShowTitle" />
+      <div v-if="panelState.panelConfig.systemMonitorShow" class="mt-[5px]">
+        <div>
+          {{ $t('apps.baseSettings.showTitle') }}
+        </div>
+        <div class="flex items-center mt-[5px]">
+          <NSwitch v-model:value="panelState.panelConfig.systemMonitorShowTitle" />
+        </div>
       </div>
-      <div v-if="panelState.panelConfig.systemMonitorShow" class="flex items-center mt-[5px]">
-        <span class="mr-[10px]">{{ $t('apps.baseSettings.publicVisitModeShow') }}</span>
-        <NSwitch v-model:value="panelState.panelConfig.systemMonitorPublicVisitModeShow" />
+      <div v-if="panelState.panelConfig.systemMonitorShow" class="mt-[5px]">
+        <div>
+          {{ $t('apps.baseSettings.publicVisitModeShow') }}
+        </div>
+        <div class="flex items-center mt-[5px]">
+          <NSwitch v-model:value="panelState.panelConfig.systemMonitorPublicVisitModeShow" />
+        </div>
       </div>
     </NCard>
 
