@@ -48,6 +48,84 @@ const settingModalShow = ref(false)
 const items = ref<ItemGroup[]>([])
 const filterItems = ref<ItemGroup[]>([])
 
+// 判断指定主机名是否属于内网局域网地址
+function isPrivateIpOrLanHost(hostname: string): boolean {
+  if (
+    hostname === 'localhost'
+    || hostname === '127.0.0.1'
+    || hostname.endsWith('.local')
+    || hostname.endsWith('.lan')
+  ) {
+    return true
+  }
+
+  // 192.168.x.x
+  if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname))
+    return true
+
+  // 10.x.x.x
+  if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname))
+    return true
+
+  // 172.16.x.x - 172.31.x.x
+  const match172 = hostname.match(/^172\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/)
+  if (match172) {
+    const second = Number.parseInt(match172[1], 10)
+    if (second >= 16 && second <= 31)
+      return true
+  }
+
+  return false
+}
+
+// 内网连通性动态探测标记 (默认先检查当前地址栏)
+const isLanDetected = ref<boolean>(isPrivateIpOrLanHost(window.location.hostname))
+let hasProbedLan = false
+
+// 探活探测（用于从外网域名访问时，探测当前客户端是否处于内网）
+async function probeLanReachability(testUrl?: string) {
+  // 如果本身就是通过内网 IP 打开的面板，直接确认为内网
+  if (isPrivateIpOrLanHost(window.location.hostname)) {
+    isLanDetected.value = true
+    return
+  }
+
+  if (!testUrl || hasProbedLan)
+    return
+
+  try {
+    hasProbedLan = true
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 450)
+    await fetch(testUrl, { mode: 'no-cors', signal: controller.signal })
+    clearTimeout(timer)
+    isLanDetected.value = true
+  }
+  catch {
+    isLanDetected.value = false
+  }
+}
+
+// 计算卡片最优跳转地址
+function getOptimalUrl(item?: Panel.ItemInfo | null): string {
+  if (!item)
+    return ''
+
+  // 1. 若用户手动切到 LAN 模式，或处于自动模式且处于内网环境，则优先选择 lanUrl
+  const preferLan = panelState.networkMode === PanelStateNetworkModeEnum.lan
+    || (panelState.networkMode !== PanelStateNetworkModeEnum.wan && isLanDetected.value)
+
+  let targetUrl = item.url
+  if (preferLan && item.lanUrl && item.lanUrl.trim() !== '') {
+    targetUrl = item.lanUrl
+  }
+  else if (!targetUrl && item.lanUrl) {
+    targetUrl = item.lanUrl
+  }
+
+  return targetUrl || ''
+}
+
 function openPage(openMethod: number, url: string, title?: string) {
   switch (openMethod) {
     case 1:
@@ -74,13 +152,7 @@ function handleItemClick(itemGroupIndex: number, item: Panel.ItemInfo) {
     return
   }
 
-  let jumpUrl = ''
-
-  if (item)
-    jumpUrl = (panelState.networkMode === PanelStateNetworkModeEnum.lan ? item.lanUrl : item.url) as string
-  if (item.lanUrl === '')
-    jumpUrl = item.url
-
+  const jumpUrl = getOptimalUrl(item)
   openPage(item.openMethod, jumpUrl, item.title)
 }
 
@@ -106,17 +178,21 @@ function getList() {
 // 从后端获取组下面的图标
 function updateItemIconGroupByNet(itemIconGroupIndex: number, itemIconGroupId: number) {
   getListByGroupId<Common.ListResponse<Panel.ItemInfo[]>>(itemIconGroupId).then((res) => {
-    if (res.code === 0)
+    if (res.code === 0) {
       items.value[itemIconGroupIndex].items = res.data.list
+      // 触发后台轻量探活
+      if (!hasProbedLan && !isLanDetected.value) {
+        const sampleLanUrl = res.data.list?.find(i => i.lanUrl && i.lanUrl.startsWith('http'))?.lanUrl
+        if (sampleLanUrl)
+          probeLanReachability(sampleLanUrl)
+      }
+    }
   })
 }
 
 function handleRightMenuSelect(key: string | number) {
   dropdownShow.value = false
-  // console.log(currentRightSelectItem, key)
-  let jumpUrl = panelState.networkMode === PanelStateNetworkModeEnum.lan ? currentRightSelectItem.value?.lanUrl : currentRightSelectItem.value?.url
-  if (currentRightSelectItem.value?.lanUrl === '')
-    jumpUrl = currentRightSelectItem.value.url
+  const jumpUrl = getOptimalUrl(currentRightSelectItem.value)
   switch (key) {
     case 'newWindows':
       window.open(jumpUrl)
@@ -183,11 +259,15 @@ function handleEditSuccess(item: Panel.ItemInfo) {
 
 function handleChangeNetwork(mode: PanelStateNetworkModeEnum) {
   panelState.setNetworkMode(mode)
-  if (mode === PanelStateNetworkModeEnum.lan)
-    ms.success(t('panelHome.changeToLanModelSuccess'))
-
-  else
-    ms.success(t('panelHome.changeToWanModelSuccess'))
+  if (mode === PanelStateNetworkModeEnum.lan) {
+    ms.success('已切换为【🏠 内网模式】（优先局域网直连）')
+  }
+  else if (mode === PanelStateNetworkModeEnum.wan) {
+    ms.success('已切换为【🌐 外网模式】（优先公网域名访问）')
+  }
+  else {
+    ms.success(`已切换为【🤖 自动感知模式】(${isLanDetected.value ? '已识别为内网环境' : '已识别为外网环境'})`)
+  }
 }
 
 // 结束拖拽
@@ -225,21 +305,23 @@ function getDropdownMenuOptions() {
       label: t('iconItem.newWindowOpen'),
       key: 'newWindows',
     },
-
   ]
 
-  if (currentRightSelectItem.value?.lanUrl && panelState.networkMode === PanelStateNetworkModeEnum.wan) {
-    dropdownMenuOptions.push({
-      label: t('panelHome.openLanUrl'),
-      key: 'openLanUrl',
-    })
-  }
-
-  if (currentRightSelectItem.value?.lanUrl && panelState.networkMode === PanelStateNetworkModeEnum.lan) {
-    dropdownMenuOptions.push({
-      label: t('panelHome.openWanUrl'),
-      key: 'openWanUrl',
-    })
+  if (currentRightSelectItem.value?.lanUrl) {
+    const isPreferLan = panelState.networkMode === PanelStateNetworkModeEnum.lan
+      || (panelState.networkMode !== PanelStateNetworkModeEnum.wan && isLanDetected.value)
+    if (isPreferLan) {
+      dropdownMenuOptions.push({
+        label: t('panelHome.openWanUrl'),
+        key: 'openWanUrl',
+      })
+    }
+    else {
+      dropdownMenuOptions.push({
+        label: t('panelHome.openLanUrl'),
+        key: 'openLanUrl',
+      })
+    }
   }
 
   if (authStore.visitMode === VisitMode.VISIT_MODE_LOGIN) {
@@ -259,6 +341,15 @@ onMounted(() => {
   // 更新用户信息
   updateLocalUserInfo()
   getList()
+
+  // 遍历首个具有 lanUrl 的卡片进行后台快速探活
+  const sampleLanUrl = items.value
+    .flatMap(g => g.items || [])
+    .find(i => i.lanUrl && i.lanUrl.startsWith('http'))?.lanUrl
+
+  if (sampleLanUrl) {
+    probeLanReachability(sampleLanUrl)
+  }
 
   // 更新同步云端配置
   panelState.updatePanelConfigByCloud()
@@ -333,21 +424,28 @@ function handleAddItem(itemIconGroupId?: number) {
       }"
     />
     <div class="mask" :style="{ backgroundColor: `rgba(0,0,0,${panelState.panelConfig.backgroundMaskNumber})` }" />
-    <div ref="scrollContainerRef" class="absolute w-full h-full overflow-auto">
+    <!-- 滚动容器：保证内部充满高度实现页脚沉底 -->
+    <div ref="scrollContainerRef" class="absolute w-full h-full overflow-auto flex flex-col">
       <div
-        class="p-2.5 mx-auto"
+        class="p-2.5 mx-auto w-full flex-1 flex flex-col justify-between box-border"
         :style="{
           marginTop: `${panelState.panelConfig.marginTop}%`,
           marginBottom: `${panelState.panelConfig.marginBottom}%`,
           maxWidth: (panelState.panelConfig.maxWidth ?? '1200') + panelState.panelConfig.maxWidthUnit,
         }"
       >
-        <!-- 头部 LOGO 与时钟 -->
+        <!-- 上半部分：头部与所有卡片组 -->
+        <div>
+          <!-- 头部 LOGO 与时钟 (颜色、透明度统一联动) -->
         <div class="mx-[auto] w-[80%]">
           <div 
             class="flex mx-[auto] items-center justify-center transition-all duration-300"
-            :style="{ opacity: ((panelState.panelConfig.headerOpacity ?? 90) / 100) }"
+            :style="{ 
+              opacity: ((panelState.panelConfig.headerOpacity ?? 90) / 100),
+              color: panelState.panelConfig.logoColor || '#ffffff',
+            }"
           >
+            <!-- 主标题 -->
             <div class="logo">
               <span 
                 class="text-2xl md:text-6xl font-bold select-none transition-all duration-300"
@@ -355,22 +453,30 @@ function handleAddItem(itemIconGroupId?: number) {
                 :style="{
                   fontFamily: panelState.panelConfig.logoFontFamily || 'system-ui',
                   color: panelState.panelConfig.logoColor || '#ffffff',
-                  textShadow: panelState.panelConfig.logoGlassEffect ? '' : '0 2px 10px rgba(0,0,0,0.35)',
+                  textShadow: panelState.panelConfig.logoGlassEffect ? '' : '0 2px 12px rgba(0,0,0,0.45)',
                 }"
               >
                 {{ panelState.panelConfig.logoText }}
               </span>
             </div>
+
+            <!-- 分割线 -->
             <div 
-              class="divider text-base lg:text-2xl mx-[12px] select-none"
-              :style="{ color: panelState.panelConfig.logoColor || 'rgba(255,255,255,0.6)' }"
+              class="divider text-base lg:text-2xl mx-[12px] select-none opacity-60 font-light"
+              :style="{ color: panelState.panelConfig.logoColor || '#ffffff' }"
             >
               |
             </div>
-            <div>
-              <Clock :hide-second="!panelState.panelConfig.clockShowSecond" />
+
+            <!-- 时钟区域 (颜色同步传入) -->
+            <div class="select-none flex items-center">
+              <Clock 
+                :hide-second="!panelState.panelConfig.clockShowSecond" 
+                :color="panelState.panelConfig.logoColor || '#ffffff'"
+              />
             </div>
           </div>
+
           <div v-if="panelState.panelConfig.searchBoxShow" class="flex mt-[20px] mx-auto sm:w-full lg:w-[80%]">
             <SearchBox @itemSearch="itemFrontEndSearch" />
           </div>
@@ -419,7 +525,7 @@ function handleAddItem(itemIconGroupId?: number) {
             </div>
 
             <!-- 详情图标 -->
-            <div v-if="panelState.panelConfig.iconStyle === PanelPanelConfigStyleEnum.info">
+            <div v-if="Number(panelState.panelConfig.iconStyle) === 0 || panelState.panelConfig.iconStyle === PanelPanelConfigStyleEnum.info">
               <div v-if="itemGroup.items">
                 <VueDraggable
                   v-model="itemGroup.items" item-key="sort" :animation="300"
@@ -434,7 +540,7 @@ function handleAddItem(itemIconGroupId?: number) {
                       :icon-text-color="panelState.panelConfig.iconTextColor"
                       :icon-text-info-hide-description="panelState.panelConfig.iconTextInfoHideDescription || false"
                       :icon-text-icon-hide-title="panelState.panelConfig.iconTextIconHideTitle || false"
-                      :style="0"
+                      :style="PanelPanelConfigStyleEnum.info"
                       @click="handleItemClick(itemGroupIndex, item)"
                     />
                   </div>
@@ -446,7 +552,7 @@ function handleAddItem(itemIconGroupId?: number) {
                       :icon-text-color="panelState.panelConfig.iconTextColor"
                       :icon-text-info-hide-description="panelState.panelConfig.iconTextInfoHideDescription || false"
                       :icon-text-icon-hide-title="panelState.panelConfig.iconTextIconHideTitle || false"
-                      :style="0"
+                      :style="PanelPanelConfigStyleEnum.info"
                       @click="handleAddItem(itemGroup.id)"
                     />
                   </div>
@@ -455,7 +561,7 @@ function handleAddItem(itemIconGroupId?: number) {
             </div>
 
             <!-- APP图标宫型盒子 -->
-            <div v-if="panelState.panelConfig.iconStyle === PanelPanelConfigStyleEnum.icon">
+            <div v-if="Number(panelState.panelConfig.iconStyle) === 1 || panelState.panelConfig.iconStyle === PanelPanelConfigStyleEnum.icon">
               <div v-if="itemGroup.items">
                 <VueDraggable
                   v-model="itemGroup.items" item-key="sort" :animation="300"
@@ -506,7 +612,20 @@ function handleAddItem(itemIconGroupId?: number) {
             </div>
           </div>
         </div>
-        <div class="mt-5 footer" v-html="(panelState.panelConfig.footerHtml || '').replace('my-sun-panel', 'firefly-panel')" />
+        </div>
+
+        <!-- 下半部分：纯净沉底页脚 (最大化时稳居屏幕最底端) -->
+        <div 
+          class="footer-clean-wrap select-none mt-10 pb-4"
+          :style="{ 
+            transform: `translateY(${panelState.panelConfig.footerOffsetY ?? 0}px)`,
+          }"
+        >
+          <div 
+            class="footer"
+            v-html="(panelState.panelConfig.footerHtml || '').replace('my-sun-panel', 'firefly-panel')" 
+          />
+        </div>
       </div>
     </div>
 
@@ -519,22 +638,37 @@ function handleAddItem(itemIconGroupId?: number) {
     <!-- 悬浮按钮 -->
     <div class="fixed-element shadow-[0_0_10px_2px_rgba(0,0,0,0.2)]">
       <NButtonGroup vertical>
-        <!-- 网络模式切换按钮组 -->
+        <!-- 网络模式三态切换按钮组 (🤖 自动 -> 🏠 内网 -> 🌐 外网 -> 🤖 自动) -->
         <NButton
-          v-if="panelState.networkMode === PanelStateNetworkModeEnum.lan && panelState.panelConfig.netModeChangeButtonShow" color="#2a2a2a6b"
-          :title="t('panelHome.changeToWanModel')" @click="handleChangeNetwork(PanelStateNetworkModeEnum.wan)"
+          v-if="(panelState.networkMode === PanelStateNetworkModeEnum.auto || panelState.networkMode === null || panelState.networkMode === undefined) && panelState.panelConfig.netModeChangeButtonShow"
+          color="#2a2a2a6b"
+          :title="`当前网络：🤖 自动感知模式 (${isLanDetected ? '内网优先' : '外网优先'})\n点击切换至：🏠 强制内网直连`"
+          @click="handleChangeNetwork(PanelStateNetworkModeEnum.lan)"
         >
           <template #icon>
-            <SvgIcon class="text-white font-xl" icon="material-symbols:lan-outline-rounded" />
+            <SvgIcon class="text-emerald-400 font-xl" icon="material-symbols:auto-mode-rounded" />
           </template>
         </NButton>
 
         <NButton
-          v-if="panelState.networkMode === PanelStateNetworkModeEnum.wan && panelState.panelConfig.netModeChangeButtonShow" color="#2a2a2a6b"
-          :title="t('panelHome.changeToLanModel')" @click="handleChangeNetwork(PanelStateNetworkModeEnum.lan)"
+          v-if="panelState.networkMode === PanelStateNetworkModeEnum.lan && panelState.panelConfig.netModeChangeButtonShow"
+          color="#2a2a2a6b"
+          title="当前网络：🏠 强制内网直连&#10;点击切换至：🌐 强制外网公网"
+          @click="handleChangeNetwork(PanelStateNetworkModeEnum.wan)"
         >
           <template #icon>
-            <SvgIcon class="text-white font-xl" icon="mdi:wan" />
+            <SvgIcon class="text-sky-400 font-xl" icon="material-symbols:lan-outline-rounded" />
+          </template>
+        </NButton>
+
+        <NButton
+          v-if="panelState.networkMode === PanelStateNetworkModeEnum.wan && panelState.panelConfig.netModeChangeButtonShow"
+          color="#2a2a2a6b"
+          title="当前网络：🌐 强制外网公网&#10;点击切换至：🤖 自动感知模式"
+          @click="handleChangeNetwork(PanelStateNetworkModeEnum.auto)"
+        >
+          <template #icon>
+            <SvgIcon class="text-amber-400 font-xl" icon="mdi:wan" />
           </template>
         </NButton>
 
@@ -653,7 +787,59 @@ html {
   font-weight: 200;
 }
 
-.footer:empty, .footer > div:empty {
+/* 纯净沉底页脚容器 */
+.footer-clean-wrap {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: auto; /* 关键：自动推到容器最底部 */
+}
+
+/* 取消毛玻璃胶囊，呈现纯净透明文本 */
+.footer,
+.footer > div,
+.ios27-glass-footer {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  margin: 0 auto !important;
+  padding: 6px 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  color: rgba(255, 255, 255, 0.72) !important;
+  font-size: 0.85rem !important;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65) !important;
+  transition: all 0.2s ease !important;
+}
+
+/* 页脚链接样式 */
+.footer a,
+.footer > div a,
+.ios27-glass-footer a {
+  color: rgba(255, 255, 255, 0.95) !important;
+  font-weight: 600 !important;
+  margin-left: 6px !important;
+  text-decoration: none !important;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65) !important;
+  transition: all 0.2s ease !important;
+}
+
+.footer a:hover,
+.footer > div a:hover,
+.ios27-glass-footer a:hover {
+  color: #6ee7b7 !important;
+  text-shadow: 0 0 12px rgba(110, 231, 183, 0.9) !important;
+}
+
+.footer:empty,
+.footer > div:empty {
   display: none !important;
 }
 
@@ -673,9 +859,9 @@ html {
 .icon-info-box {
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 18px;
-
+  /* 适配长方形卡片尺寸：每张卡片最小 215px，自适应铺满整行 */
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+  gap: 16px;
 }
 
 .icon-small-box {

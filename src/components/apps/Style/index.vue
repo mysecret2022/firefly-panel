@@ -76,7 +76,7 @@ function resetPanelConfig() {
 </script>
 
 <template>
-  <div class="bg-slate-200 dark:bg-zinc-900 rounded-[10px] p-[8px] overflow-auto">
+  <div class="h-full max-h-full overflow-y-auto bg-slate-200 dark:bg-zinc-900 rounded-[10px] p-[8px] pb-8 box-border custom-style-scrollbar">
     <!-- LOGO 与个性化外观设置 -->
     <NCard style="border-radius:12px" size="small" class="shadow-xs">
       <div class="text-slate-600 dark:text-zinc-300 mb-3 font-bold text-sm">
@@ -235,7 +235,7 @@ function resetPanelConfig() {
         </div>
       </div>
 
-      <div v-if="panelState.panelConfig.iconStyle === PanelPanelConfigStyleEnum.info" class="mt-[5px]">
+      <div v-if="Number(panelState.panelConfig.iconStyle) === 0 || panelState.panelConfig.iconStyle === PanelPanelConfigStyleEnum.info" class="mt-[5px]">
         <div>
           {{ $t('apps.baseSettings.hideDescription') }}
         </div>
@@ -244,7 +244,31 @@ function resetPanelConfig() {
         </div>
       </div>
 
-      <div v-if="panelState.panelConfig.iconStyle === PanelPanelConfigStyleEnum.icon" class="mt-[5px]">
+      <!-- 长方形卡片毛玻璃背景透明度调节 (支持 0% 完全透明化) -->
+      <div 
+        v-if="Number(panelState.panelConfig.iconStyle) === 0 || panelState.panelConfig.iconStyle === PanelPanelConfigStyleEnum.info" 
+        class="mt-[12px] pt-[10px] border-t border-slate-100 dark:border-zinc-800"
+      >
+        <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
+          <span>长方形卡片背景透明度:</span>
+          <span class="font-mono font-semibold text-emerald-500">
+            {{ panelState.panelConfig.cardGlassOpacity ?? 45 }}% 
+            {{ (panelState.panelConfig.cardGlassOpacity ?? 45) === 0 ? '(完全透明)' : '' }}
+          </span>
+        </div>
+        <NSlider
+          v-model:value="panelState.panelConfig.cardGlassOpacity"
+          :min="0"
+          :max="100"
+          :step="5"
+          :format-tooltip="(v: number) => v === 0 ? '完全透明 (0%)' : `${v}%`"
+        />
+        <div class="text-[11px] text-slate-400 mt-1">
+          拉至最左侧 (0%) 可实现卡片背景 100% 完全透明，仅纯净悬浮图标与文字。
+        </div>
+      </div>
+
+      <div v-if="Number(panelState.panelConfig.iconStyle) === 1 || panelState.panelConfig.iconStyle === PanelPanelConfigStyleEnum.icon" class="mt-[5px]">
         <div>
           {{ $t('apps.baseSettings.hideTitle') }}
         </div>
@@ -374,6 +398,26 @@ function resetPanelConfig() {
         type="textarea"
         clearable
       />
+
+      <!-- 页脚独立上下位置偏移调节 -->
+      <div class="mt-3 pt-3 border-t border-slate-100 dark:border-zinc-800">
+        <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
+          <span>页脚上下位置微调:</span>
+          <span class="font-mono font-semibold text-emerald-500">
+            {{ (panelState.panelConfig.footerOffsetY ?? 0) > 0 ? `+${panelState.panelConfig.footerOffsetY}px (下移)` : (panelState.panelConfig.footerOffsetY ?? 0) < 0 ? `${panelState.panelConfig.footerOffsetY}px (上移)` : '默认居中 (0px)' }}
+          </span>
+        </div>
+        <NSlider
+          v-model:value="panelState.panelConfig.footerOffsetY"
+          :min="-120"
+          :max="150"
+          :step="5"
+          :format-tooltip="(v: number) => v === 0 ? '默认 (0px)' : (v > 0 ? `下移 +${v}px` : `上移 ${v}px`)"
+        />
+        <div class="text-[11px] text-slate-400 mt-1">
+          可自由把页脚向上或向下移动，完全独立于上方卡片内容区域的上下边距百分比。
+        </div>
+      </div>
     </NCard>
 
     <NCard style="border-radius:10px" class="mt-[10px]" size="small">
@@ -396,7 +440,22 @@ function resetPanelConfig() {
 </template>
 
 <style scoped>
-.text-shadow{
+.text-shadow {
   text-shadow: 0px 0px 5px gray;
+}
+
+/* 优雅精致细滚动条，保证内容完全可见并可流畅滑动 */
+.custom-style-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-style-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(140, 140, 140, 0.45);
+  border-radius: 9999px;
+}
+.custom-style-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(140, 140, 140, 0.7);
+}
+.custom-style-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
 }
 </style>

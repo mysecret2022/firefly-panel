@@ -2,9 +2,13 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { t } from '@/locales'
 
-const props = defineProps<{
+// 增加 color 属性支持
+const props = withDefaults(defineProps<{
   hideSecond?: boolean
-}>()
+  color?: string
+}>(), {
+  color: '#ffffff',
+})
 
 interface CurrentDate {
   time: string
@@ -31,10 +35,8 @@ function updateCurrentDate() {
     currentDate.value.time = `${hours}:${minutes}`
   }
 
-  // 获取当前的日期
   const day = now.getDate()
-  const month = now.getMonth() + 1 // 月份从0开始，所以要加1
-  // const year = now.getFullYear()
+  const month = now.getMonth() + 1
 
   const daysOfWeek = [
     t('deskModule.clock.sun'),
@@ -45,7 +47,6 @@ function updateCurrentDate() {
     t('deskModule.clock.fri'),
     t('deskModule.clock.sat'),
   ]
-  // const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   currentDate.value.week = daysOfWeek[now.getDay()]
   currentDate.value.date = `${month}-${day}`
 }
@@ -67,12 +68,19 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="clock w-full text-center">
-    <span class="clock-time text-2xl sm:text-2xl md:text-3xl font-[600]">
+  <!-- 显式绑定与主标题一致的颜色与立体文字投影 -->
+  <div 
+    class="clock w-full text-center select-none"
+    :style="{ 
+      color: color || '#ffffff',
+      textShadow: '0 2px 12px rgba(0,0,0,0.45)' 
+    }"
+  >
+    <span class="clock-time text-2xl sm:text-2xl md:text-3xl font-[600] tracking-wider leading-none">
       {{ currentDate.time }}
     </span>
-    <div class="hidden sm:hidden md:block">
-      <span class="clock-date mr-1">
+    <div class="hidden sm:hidden md:block text-xs opacity-85 mt-1 leading-none font-medium">
+      <span class="clock-date mr-1.5">
         {{ currentDate.date }}
       </span>
       <span class="clock-week">

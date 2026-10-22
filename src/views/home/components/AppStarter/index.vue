@@ -182,9 +182,9 @@ onUnmounted(() => {
               </div>
             </div>
           </NLayoutSider>
-          <NLayoutContent content-style="display: flex; flex-direction: column; min-height: 0; flex: 1; height: 100%;" class="h-full flex flex-col flex-1 min-h-0">
-            <div class="rounded-2xl h-full overflow-hidden transition-all duration-500 min-w-[300px] flex-1 flex flex-col min-h-0" :class="(isSmallScreen && !collapsed) ? 'opacity-0' : 'opacity-100'">
-              <AppLoader :component-name="componentName" class="h-full flex-1 flex flex-col min-h-0" />
+          <NLayoutContent :content-style="{ height, overflow: 'hidden' }">
+            <div class="rounded-2xl h-full transition-all duration-300 min-w-[300px]" :class="(isSmallScreen && !collapsed) ? 'opacity-0' : 'opacity-100'">
+              <AppLoader :component-name="componentName" class="h-full" />
             </div>
           </NLayoutContent>
         </NLayout>

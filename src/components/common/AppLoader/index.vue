@@ -44,3 +44,12 @@ onMounted(() => {
     </NSpin>
   </div>
 </template>
+
+<style scoped>
+:deep(.n-spin-container) {
+  height: 100% !important;
+}
+:deep(.n-spin-content) {
+  height: 100% !important;
+}
+</style>

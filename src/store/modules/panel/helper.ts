@@ -10,10 +10,11 @@ export function defaultStatePanelConfig(): Panel.panelConfig {
     backgroundImageSrc: defaultBackground,
     backgroundBlur: 0,
     backgroundMaskNumber: 0,
-    iconStyle: PanelPanelConfigStyleEnum.icon,
+    iconStyle: PanelPanelConfigStyleEnum.info, // 默认采用长方形详情卡片
     iconTextColor: '#ffffff',
     iconTextInfoHideDescription: false,
     iconTextIconHideTitle: false,
+    cardGlassOpacity: 45, // 默认 45% 半透毛玻璃
     logoText: 'Firefly-panel',
     logoImageSrc: '',
     logoFontFamily: 'system-ui',
@@ -29,6 +30,7 @@ export function defaultStatePanelConfig(): Panel.panelConfig {
     maxWidthUnit: 'px',
     marginX: 5,
     footerHtml: defaultFooterHtml,
+    footerOffsetY: 0, // 默认 0px 正常居中
     systemMonitorShow: false,
     systemMonitorShowTitle: true,
     systemMonitorPublicVisitModeShow: false,
@@ -41,7 +43,7 @@ export function defaultState(): Panel.State {
   return {
     rightSiderCollapsed: false,
     leftSiderCollapsed: false,
-    networkMode: PanelStateNetworkModeEnum.wan,
+    networkMode: PanelStateNetworkModeEnum.auto,
     panelConfig: { ...defaultStatePanelConfig() },
   }
 }

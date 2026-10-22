@@ -44,6 +44,7 @@ declare namespace Panel {
         iconTextColor?:string
         iconTextInfoHideDescription?:boolean
         iconTextIconHideTitle?:boolean
+        cardGlassOpacity?:number     // 长方形卡片毛玻璃透明度 (0~100，0为完全透明)
         logoText?:string
         logoImageSrc?:string
         logoFontFamily?:string       // 自定义字体
@@ -60,6 +61,7 @@ declare namespace Panel {
         maxWidthUnit:string
         marginX?:number
         footerHtml?:string
+        footerOffsetY?:number        // 页脚独立上下偏移量 (单位 px，支持负数上移、正数下移)
         systemMonitorShow?:boolean
         systemMonitorShowTitle?:boolean
         systemMonitorPublicVisitModeShow?:boolean
