@@ -624,20 +624,23 @@ onMounted(() => {
     <NSpin :show="loading" class="h-full flex flex-col flex-1">
       <NTabs v-model:value="activeTab" type="line" animated class="h-full flex flex-col flex-1" pane-class="h-full flex flex-col flex-1" @update:value="onTabChange">
         <!-- 第 1 页: 云端漫游图床 (默认优先展示) -->
-        <NTabPane name="images" tab="🖼️ 云端漫游图床">
-          <NCard size="small" class="mt-1 shadow-sm rounded-xl">
+        <NTabPane name="images" tab="🖼️ 云端漫游图床" class="h-full flex flex-col flex-1 min-h-0">
+          <NCard size="small" class="mt-1 shadow-sm rounded-xl flex-1 min-h-0 flex flex-col h-full" content-style="flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 0.5rem; overflow: hidden;">
             <template #header>
-              <div class="flex flex-col gap-1.5 py-0.5">
-                <!-- 上层: 全部/壁纸图床/应用图床 (往上移 0.5 字符) -->
-                <div class="-mt-1">
-                  <NTabs v-model:value="cloudCategory" type="segment" size="small" class="w-auto">
-                    <NTabPane name="all" tab="全部" />
-                    <NTabPane name="wallpapers" tab="🌄 壁纸图床" />
-                    <NTabPane name="icons" tab="🎨 应用图床" />
-                  </NTabs>
-                </div>
-                <!-- 下层: 仪表盘小胶囊 (在分类正下方，小窗口永不挤压重叠) -->
-                <div class="flex items-center text-xs text-gray-500 dark:text-gray-400 gap-2.5">
+              <div class="flex items-center py-0.5">
+                <!-- 上层/左侧: 全部/壁纸图床/应用图床 -->
+                <NTabs v-model:value="cloudCategory" type="segment" size="small" class="w-auto">
+                  <NTabPane name="all" tab="全部" />
+                  <NTabPane name="wallpapers" tab="🌄 壁纸图床" />
+                  <NTabPane name="icons" tab="🎨 应用图床" />
+                </NTabs>
+              </div>
+            </template>
+
+            <template #header-extra>
+              <div class="flex items-center gap-2 whitespace-nowrap overflow-x-auto py-0.5">
+                <!-- 已漫游与容量小状态 (与刷新、全选等按钮排布在同一行) -->
+                <div class="hidden md:flex items-center text-xs text-gray-500 dark:text-gray-400 gap-2 px-2 py-1 rounded-md bg-gray-100/70 dark:bg-zinc-800/60 border border-gray-200/60 dark:border-zinc-700/50">
                   <span>已漫游: <strong class="text-blue-500 font-semibold">{{ cloudImages.length }}</strong> 张</span>
                   <span>容量: <strong class="text-emerald-500 font-semibold">{{ totalCloudSize }}</strong></span>
                   <span class="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
@@ -645,11 +648,7 @@ onMounted(() => {
                     云端畅通
                   </span>
                 </div>
-              </div>
-            </template>
 
-            <template #header-extra>
-              <div class="flex flex-wrap items-center gap-2">
                 <NButton size="small" secondary @click="fetchImages">
                   <template #icon>
                     <SvgIcon icon="material-symbols:refresh" />
@@ -694,17 +693,18 @@ onMounted(() => {
               </div>
             </template>
 
-            <NAlert type="info" size="small" class="mb-3">
+            <NAlert type="info" size="small" class="mb-2 shrink-0">
               支持按<strong>壁纸图床</strong>和<strong>应用图床</strong>分类筛选。多选批量删除已开启安全防频次限制限流保护，确保稳妥删除。
             </NAlert>
 
-            <NSpin :show="imagesLoading">
-              <div v-if="filteredCloudImages.length === 0" class="py-12 text-center text-slate-400">
-                <p>该分类下暂无云端图片</p>
-              </div>
+            <div class="flex-1 min-h-0 overflow-y-auto pr-0.5">
+              <NSpin :show="imagesLoading">
+                <div v-if="filteredCloudImages.length === 0" class="py-12 text-center text-slate-400">
+                  <p>该分类下暂无云端图片</p>
+                </div>
 
-              <!-- 自适应弹性网格: 随弹窗宽度自增列数平铺成一排 -->
-              <NGrid v-else cols="2 450:3 680:4 900:6 1200:8 1500:10" :x-gap="8" :y-gap="8">
+                <!-- 自适应弹性网格: 随弹窗宽度自增列数平铺成一排 -->
+                <NGrid v-else cols="2 450:3 680:4 900:6 1200:8 1500:10" :x-gap="8" :y-gap="8">
                 <NGridItem v-for="img in filteredCloudImages" :key="img.path">
                   <div
                     class="relative border rounded-xl p-1.5 bg-slate-50 dark:bg-zinc-800/80 hover:shadow-md transition-all group overflow-hidden border-gray-200 dark:border-zinc-700"
@@ -751,6 +751,7 @@ onMounted(() => {
                 </NGridItem>
               </NGrid>
             </NSpin>
+          </div>
           </NCard>
         </NTabPane>
 

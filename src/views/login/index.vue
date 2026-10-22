@@ -16,6 +16,9 @@ const ms = useMessage()
 const loading = ref(false)
 const languageValue = ref<Language>(appStore.language)
 
+const usernameFocus = ref(false)
+const passwordFocus = ref(false)
+
 // const isShowCaptcha = ref<boolean>(false)
 // const isShowRegister = ref<boolean>(false)
 
@@ -82,8 +85,12 @@ function handleChangeLanuage(value: Language) {
         <NFormItem>
           <NInput
             v-model:value="form.username"
-            :placeholder="form.username ? '' : ($t('login.usernamePlaceholder') || '请输入账号')"
+            :placeholder="(usernameFocus || form.username) ? '' : ($t('login.usernamePlaceholder') || '请输入账号')"
+            :input-props="{ autocomplete: 'off' }"
             clearable
+            @focus="usernameFocus = true"
+            @blur="usernameFocus = false"
+            @input="(val) => { if (val) usernameFocus = true }"
           >
             <template #prefix>
               <SvgIcon icon="ph:user-bold" />
@@ -96,8 +103,12 @@ function handleChangeLanuage(value: Language) {
             v-model:value="form.password"
             type="password"
             show-password-on="click"
-            :placeholder="form.password ? '' : ($t('login.passwordPlaceholder') || '请输入密码')"
+            :placeholder="(passwordFocus || form.password) ? '' : ($t('login.passwordPlaceholder') || '请输入密码')"
+            :input-props="{ autocomplete: 'off' }"
             clearable
+            @focus="passwordFocus = true"
+            @blur="passwordFocus = false"
+            @input="(val) => { if (val) passwordFocus = true }"
           >
             <template #prefix>
               <SvgIcon icon="mdi:password-outline" />
@@ -180,5 +191,17 @@ function handleChangeLanuage(value: Language) {
   .login-title{
     text-align: center;
     margin: 20px;
+  }
+
+  /* 输入内容或点击聚焦时，占位提示汉字瞬间物理消失，绝不残留任何残影 */
+  .login-card .n-input--focus .n-input__placeholder,
+  .login-card .n-input.n-input--focus .n-input__placeholder,
+  .login-card .n-input:focus-within .n-input__placeholder,
+  .login-card input:focus::placeholder,
+  .login-card input:not(:placeholder-shown)::placeholder {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    color: transparent !important;
   }
   </style>

@@ -351,11 +351,21 @@ onBeforeUnmount(() => {
 /* 消除子容器多余空白，自适应撑满 */
 .draggable-resizable-modal .n-card__content {
   flex: 1 1 100% !important;
+  min-height: 0 !important;
   height: 100% !important;
   display: flex !important;
   flex-direction: column !important;
-  overflow: auto;
+  overflow: hidden !important;
   padding: 0.5rem !important;
+}
+
+/* 强制内部子组件与卡片容器 100% 充满弹窗剩余高度，根除底部死角留白 */
+.draggable-resizable-modal .n-card__content > * {
+  flex: 1 1 100% !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
 }
 
 /* 头部最大化按钮 */

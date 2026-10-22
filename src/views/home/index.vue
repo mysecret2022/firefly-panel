@@ -492,7 +492,7 @@ function handleAddItem(itemIconGroupId?: number) {
             </div>
           </div>
         </div>
-        <div class="mt-5 footer" v-html="panelState.panelConfig.footerHtml" />
+        <div class="mt-5 footer" v-html="(panelState.panelConfig.footerHtml || '').replace('my-sun-panel', 'firefly-panel')" />
       </div>
     </div>
 
@@ -640,34 +640,48 @@ html {
   font-weight: 200;
 }
 
-/* 苹果 iOS 27 高级悬浮毛玻璃页脚 */
-.footer {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin: 1.5rem auto 0 auto;
-  width: fit-content;
-  max-width: 90%;
-  padding: 6px 20px;
-  border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.18) !important;
-  backdrop-filter: blur(24px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.28) !important;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16), inset 0 1px 1px rgba(255, 255, 255, 0.4) !important;
-  color: rgba(255, 255, 255, 0.92);
-  font-size: 0.82rem;
-  transition: all 0.3s ease;
+/* 苹果 iOS 27 高级悬浮毛玻璃页脚 (含 Powered By Firefly-panel) */
+.footer, .footer > div, .ios27-glass-footer {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  margin: 2rem auto 1rem auto !important;
+  width: fit-content !important;
+  max-width: 90% !important;
+  padding: 8px 24px !important;
+  border-radius: 9999px !important;
+  background: rgba(255, 255, 255, 0.16) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.45) !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+  font-size: 0.85rem !important;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35) !important;
+  transition: all 0.3s ease !important;
 }
 
-.footer:empty {
+.footer a, .footer > div a, .ios27-glass-footer a {
+  color: rgba(255, 255, 255, 0.98) !important;
+  font-weight: 600 !important;
+  margin-left: 6px !important;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.6), 0 2px 6px rgba(0, 0, 0, 0.35) !important;
+  transition: all 0.2s ease !important;
+}
+
+.footer a:hover, .footer > div a:hover, .ios27-glass-footer a:hover {
+  color: #6ee7b7 !important;
+  text-shadow: 0 0 16px rgba(110, 231, 183, 0.9) !important;
+}
+
+.footer:empty, .footer > div:empty {
   display: none !important;
 }
 
-.dark .footer {
-  background: rgba(20, 20, 25, 0.45) !important;
+.dark .footer, .dark .footer > div, .dark .ios27-glass-footer {
+  background: rgba(20, 20, 26, 0.42) !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.18) !important;
 }
 
 .app-icon-text-shadow {

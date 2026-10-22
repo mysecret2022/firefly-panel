@@ -66,6 +66,14 @@ const targetCategory = ref<number>(1)
 const previewImageSrc = ref<string | null>(null)
 const previewImageName = ref<string>('')
 
+// 动态可调排布列数
+const customGridCols = ref<string>('auto')
+const currentGridCols = computed(() => {
+  if (customGridCols.value === 'auto')
+    return '2 380:3 560:4 740:5 920:6 1100:7 1280:8 1460:9 1640:10 1820:11 2000:12'
+  return customGridCols.value
+})
+
 function openPreview(item: FileItem) {
   previewImageSrc.value = item.src
   previewImageName.value = item.fileName
@@ -364,7 +372,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col p-2 bg-slate-50 dark:bg-zinc-900 rounded-xl overflow-hidden box-border">
+  <div class="h-full flex flex-col flex-1 min-h-0 p-2 bg-slate-50 dark:bg-zinc-900 rounded-xl overflow-hidden box-border">
     <!-- 顶部说明与 Tab 切换 -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-gray-200 dark:border-zinc-800 gap-2">
       <NTabs v-model:value="currentTab" type="segment" size="small" class="w-full sm:w-auto">
@@ -411,6 +419,24 @@ onMounted(() => {
         <span v-if="selectedIds.length > 0" class="text-green-600 dark:text-green-400 font-medium">
           已勾选 {{ selectedIds.length }} 张
         </span>
+
+        <!-- 动态列数调节 -->
+        <div class="hidden sm:flex items-center gap-1.5 ml-2 text-xs">
+          <span>排布:</span>
+          <NSelect
+            v-model:value="customGridCols"
+            size="tiny"
+            class="w-24"
+            :options="[
+              { label: '自适应', value: 'auto' },
+              { label: '4 列', value: '4' },
+              { label: '6 列', value: '6' },
+              { label: '8 列', value: '8' },
+              { label: '10 列', value: '10' },
+              { label: '12 列', value: '12' },
+            ]"
+          />
+        </div>
       </div>
 
       <div class="flex items-center gap-2">
@@ -471,13 +497,13 @@ onMounted(() => {
     </div>
 
     <!-- 图片瀑布流 / 网格展示 (减小多余空白，图片更饱满) -->
-    <div class="flex-1 overflow-y-auto mt-1 p-0.5">
+    <div class="flex-1 min-h-0 overflow-y-auto mt-1 p-0.5">
       <NSpin :show="loading">
         <div v-if="filteredList.length === 0 && !loading" class="text-center py-16 text-gray-400 text-sm">
           暂无图片，点击右上角上传图片或图标吧
         </div>
 
-        <NGrid v-else cols="2 450:3 680:4 900:6" :x-gap="8" :y-gap="8">
+        <NGrid v-else :cols="currentGridCols" :x-gap="8" :y-gap="8">
           <NGridItem v-for="item in filteredList" :key="item.id">
             <NCard
               size="small"
