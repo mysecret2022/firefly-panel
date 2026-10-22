@@ -76,6 +76,13 @@ const form = ref<CloudStorageConfig>({
   },
 })
 
+// 仓库公私检测结果
+const repoCheckResult = ref<{ tested: boolean; isPrivate: boolean; desc: string }>({
+  tested: false,
+  isPrivate: false,
+  desc: '',
+})
+
 // 备份与图片列表
 const cloudBackups = ref<CloudFileItem[]>([])
 const cloudImages = ref<CloudFileItem[]>([])
@@ -183,13 +190,20 @@ async function handleTestConnection() {
   try {
     const res: any = await testCloudConnection(form.value)
     if (res.code === 0 && res.data) {
-      ms.success(`连接测试成功: ${res.data.description}`)
+      repoCheckResult.value = {
+        tested: true,
+        isPrivate: res.data.isPrivate,
+        desc: res.data.description,
+      }
+      ms.success(res.data.message || `连接测试成功: ${res.data.description}`)
     }
     else {
+      repoCheckResult.value.tested = false
       ms.error(`连接失败: ${res.msg || '无法连接到存储后端'}`)
     }
   }
   catch (error: any) {
+    repoCheckResult.value.tested = false
     ms.error(`连接错误: ${error.message || '请检查配置参数'}`)
   }
   finally {
@@ -852,53 +866,69 @@ onMounted(() => {
           </NCard>
         </NTabPane>
 
-        <!-- 第 3 页: 存储配置 (移至第 3 页) -->
+        <!-- 第 3 页: 存储配置 (还原为最初设计) -->
         <NTabPane name="config" tab="⚙️ 存储配置">
-          <NCard title="多端漫游与云端存储接入" size="small" class="mt-2 shadow-sm rounded-lg">
+          <NCard title="云存储引擎配置" size="small" class="mt-2 shadow-sm rounded-lg">
             <template #header-extra>
-              <NSpace align="center">
-                <span class="text-xs text-slate-500 font-medium">启用云同步与双写:</span>
-                <NSwitch v-model:value="form.enabled" />
-              </NSpace>
+              <NTag v-if="repoCheckResult.tested" :type="repoCheckResult.isPrivate ? 'success' : 'warning'" round size="small">
+                {{ repoCheckResult.isPrivate ? '私有安全仓库 (Private)' : '公开仓库 (Public - 需加密)' }}
+              </NTag>
+              <NTag v-else type="default" round size="small">
+                未测试连通性
+              </NTag>
             </template>
 
-            <NAlert type="info" size="small" class="mb-4">
-              支持使用 <strong>GitHub 仓库</strong> 作为无限图床与漫游节点，或使用 <strong>Cloudflare R2</strong>（兼容 S3 协议）。开启后，上传的图片将实时双写上云，实现多终端多设备无缝漫游！
-            </NAlert>
+            <!-- 核心双写开关 -->
+            <div class="mb-4 p-3 bg-slate-50 dark:bg-zinc-800 rounded-lg flex items-center justify-between border border-slate-200 dark:border-zinc-700">
+              <div>
+                <div class="font-medium text-slate-800 dark:text-zinc-100 flex items-center gap-2">
+                  <SvgIcon icon="material-symbols:cloud-sync-outline" class="text-xl text-primary" />
+                  <span>启用本地 + 云端双写机制 (默认关闭)</span>
+                </div>
+                <div class="text-xs text-slate-500 dark:text-zinc-400 mt-1">
+                  开启后，上传图标或壁纸时系统将自动上传一份到云端备份存储；换新 NAS 或设备时可随时一键漫游恢复。
+                </div>
+              </div>
+              <NSwitch v-model:value="form.enabled" />
+            </div>
 
-            <NForm label-placement="left" label-width="120" size="small">
-              <NFormItem label="云存储类型">
+            <!-- 驱动选择 -->
+            <NForm label-placement="left" label-width="130" size="small">
+              <NFormItem label="云存储平台">
                 <NRadioGroup v-model:value="form.type">
                   <NRadio value="github">
-                    GitHub 仓库 (首选推荐 / 免费大容量)
+                    GitHub 仓库 (免费·支持 jsdelivr CDN)
                   </NRadio>
                   <NRadio value="r2">
-                    Cloudflare R2 / S3 兼容对象存储
+                    Cloudflare R2 (S3 兼容·每月 10GB 免费)
                   </NRadio>
                 </NRadioGroup>
               </NFormItem>
 
-              <!-- GitHub 配置 -->
-              <div v-if="form.type === 'github'" class="space-y-2 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-slate-200 dark:border-zinc-700">
+              <!-- GitHub 配置项 -->
+              <div v-if="form.type === 'github'" class="space-y-3 bg-zinc-50 dark:bg-zinc-900/40 p-3 rounded-lg border border-slate-100 dark:border-zinc-800">
+                <NAlert type="info" size="small" class="mb-2">
+                  提示：系统会自动检测填写的 GitHub 仓库是私有 (Private) 还是公开 (Public)。公开仓库外链任何人可看，备份包会经强加密；私有仓库则只有持有 Token 方可访问。
+                </NAlert>
                 <NGrid cols="1 s:2" responsive="screen" :x-gap="12">
                   <NGridItem>
-                    <NFormItem label="仓库拥有者 (Owner)">
+                    <NFormItem label="用户名/组织 (Owner)">
                       <NInput v-model:value="form.github.owner" placeholder="例如: mysecret2022" />
                     </NFormItem>
                   </NGridItem>
                   <NGridItem>
-                    <NFormItem label="仓库名称 (Repo)">
-                      <NInput v-model:value="form.github.repo" placeholder="例如: my-sun-panel" />
+                    <NFormItem label="仓库名 (Repo)">
+                      <NInput v-model:value="form.github.repo" placeholder="例如: firefly-assets" />
                     </NFormItem>
                   </NGridItem>
                   <NGridItem>
                     <NFormItem label="默认分支 (Branch)">
-                      <NInput v-model:value="form.github.branch" placeholder="例如: main" />
+                      <NInput v-model:value="form.github.branch" placeholder="main" />
                     </NFormItem>
                   </NGridItem>
                   <NGridItem>
                     <NFormItem label="存放基准路径">
-                      <NInput v-model:value="form.github.basePath" placeholder="panel-data (推荐默认)" />
+                      <NInput v-model:value="form.github.basePath" placeholder="panel-data" />
                     </NFormItem>
                   </NGridItem>
                 </NGrid>
@@ -910,16 +940,19 @@ onMounted(() => {
                     placeholder="ghp_xxx (需具备 repo 读写权限)"
                   />
                 </NFormItem>
-                <NFormItem label="加速 CDN">
-                  <NSpace align="center">
+                <NFormItem label="jsdelivr CDN 加速">
+                  <div class="flex items-center gap-3">
                     <NSwitch v-model:value="form.github.useCDN" />
-                    <span class="text-xs text-slate-400">使用 jsDelivr CDN 链接加载图片 (仅适用于公开仓库)</span>
-                  </NSpace>
+                    <span class="text-xs text-slate-500">（仅在公开仓库下有效，大幅提升国内图片访问速度）</span>
+                  </div>
                 </NFormItem>
               </div>
 
-              <!-- Cloudflare R2 配置 -->
-              <div v-if="form.type === 'r2'" class="space-y-2 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-slate-200 dark:border-zinc-700">
+              <!-- Cloudflare R2 配置项 -->
+              <div v-if="form.type === 'r2'" class="space-y-3 bg-zinc-50 dark:bg-zinc-900/40 p-3 rounded-lg border border-slate-100 dark:border-zinc-800">
+                <NAlert type="info" size="small" class="mb-2">
+                  Cloudflare R2 兼容标准 S3 协议，提供每月 10GB 永久免费存储额度与 0 出网流量费。
+                </NAlert>
                 <NGrid cols="1 s:2" responsive="screen" :x-gap="12">
                   <NGridItem>
                     <NFormItem label="Account ID">
