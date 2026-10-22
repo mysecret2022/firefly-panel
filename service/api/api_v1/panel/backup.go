@@ -356,22 +356,26 @@ func applyDatabaseRestore(data SiteBackupData, currentUser models.User) error {
 	isAdmin := currentUser.Role == 1
 
 	if isAdmin {
+		// 1. 恢复卡片分组与图标
 		if len(data.ItemIconGroups) > 0 {
 			tx.Exec("DELETE FROM item_icon")
 			tx.Exec("DELETE FROM item_icon_group")
 
 			for _, g := range data.ItemIconGroups {
-				tx.Create(&g)
+				// 忽略 User 级联关联，防止主键冲突
+				tx.Omit("User").Create(&g)
 			}
 			for _, item := range data.ItemIcons {
-				if item.IconJson == "" && (item.Icon.Src != "" || item.Icon.Text != "") {
+				// 确保写回 icon_json 数据库字段
+				if item.IconJson == "" && (item.Icon.Src != "" || item.Icon.Text != "" || item.Icon.ItemType != 0) {
 					b, _ := json.Marshal(item.Icon)
 					item.IconJson = string(b)
 				}
-				tx.Create(&item)
+				tx.Omit("User").Create(&item)
 			}
 		}
 
+		// 2. 恢复用户面板配置（确保 panel_json 不为空，主页样式不丢失）
 		if len(data.UserConfigs) > 0 {
 			tx.Exec("DELETE FROM user_config")
 			for _, uc := range data.UserConfigs {
@@ -387,6 +391,7 @@ func applyDatabaseRestore(data SiteBackupData, currentUser models.User) error {
 			}
 		}
 
+		// 3. 恢复系统设置
 		if len(data.SystemSettings) > 0 {
 			tx.Exec("DELETE FROM system_setting")
 			for _, ss := range data.SystemSettings {
@@ -394,6 +399,7 @@ func applyDatabaseRestore(data SiteBackupData, currentUser models.User) error {
 			}
 		}
 
+		// 4. 恢复模块配置
 		if len(data.ModuleConfigs) > 0 {
 			tx.Exec("DELETE FROM module_config")
 			for _, mc := range data.ModuleConfigs {
@@ -405,6 +411,7 @@ func applyDatabaseRestore(data SiteBackupData, currentUser models.User) error {
 			}
 		}
 
+		// 5. 恢复图片表数据
 		if len(data.Files) > 0 {
 			tx.Exec("DELETE FROM file")
 			for _, f := range data.Files {
@@ -412,20 +419,21 @@ func applyDatabaseRestore(data SiteBackupData, currentUser models.User) error {
 			}
 		}
 	} else {
+		// 普通用户仅覆盖恢复自己的卡片与分组
 		tx.Where("user_id = ?", currentUser.ID).Delete(&models.ItemIcon{})
 		tx.Where("user_id = ?", currentUser.ID).Delete(&models.ItemIconGroup{})
 
 		for _, g := range data.ItemIconGroups {
 			g.UserId = currentUser.ID
-			tx.Create(&g)
+			tx.Omit("User").Create(&g)
 		}
 		for _, item := range data.ItemIcons {
 			item.UserId = currentUser.ID
-			if item.IconJson == "" && (item.Icon.Src != "" || item.Icon.Text != "") {
+			if item.IconJson == "" && (item.Icon.Src != "" || item.Icon.Text != "" || item.Icon.ItemType != 0) {
 				b, _ := json.Marshal(item.Icon)
 				item.IconJson = string(b)
 			}
-			tx.Create(&item)
+			tx.Omit("User").Create(&item)
 		}
 
 		for _, uc := range data.UserConfigs {

@@ -173,6 +173,26 @@ func (a *CloudStorageApi) UploadEncryptedBackup(c *gin.Context) {
 	global.Db.Find(&backup.ModuleConfigs)
 	global.Db.Find(&backup.Files) // 补充读取图片数据
 
+	// 关键修复：补全 GORM 忽略字段，确保导出的 JSON 含有真实的图标和面板样式
+	for i := range backup.ItemIcons {
+		if backup.ItemIcons[i].IconJson != "" {
+			_ = json.Unmarshal([]byte(backup.ItemIcons[i].IconJson), &backup.ItemIcons[i].Icon)
+		}
+	}
+	for i := range backup.UserConfigs {
+		if backup.UserConfigs[i].PanelJson != "" {
+			_ = json.Unmarshal([]byte(backup.UserConfigs[i].PanelJson), &backup.UserConfigs[i].Panel)
+		}
+		if backup.UserConfigs[i].SearchEngineJson != "" {
+			_ = json.Unmarshal([]byte(backup.UserConfigs[i].SearchEngineJson), &backup.UserConfigs[i].SearchEngine)
+		}
+	}
+	for i := range backup.ModuleConfigs {
+		if backup.ModuleConfigs[i].ValueJson != "" {
+			_ = json.Unmarshal([]byte(backup.ModuleConfigs[i].ValueJson), &backup.ModuleConfigs[i].Value)
+		}
+	}
+
 	jsonData, err := json.MarshalIndent(backup, "", "  ")
 	if err != nil {
 		apiReturn.Error(c, "序列化备份数据失败: "+err.Error())
@@ -308,7 +328,9 @@ func (a *CloudStorageApi) RestoreEncryptedBackup(c *gin.Context) {
 	}
 
 	for _, zf := range zipReader.File {
-		if zf.Name == "backup_data.json" {
+		cleanName := strings.ReplaceAll(zf.Name, "\\", "/")
+		baseName := filepath.Base(cleanName)
+		if baseName == "backup_data.json" && !zf.FileInfo().IsDir() {
 			rc, err := zf.Open()
 			if err != nil {
 				continue
@@ -318,12 +340,15 @@ func (a *CloudStorageApi) RestoreEncryptedBackup(c *gin.Context) {
 			if err := json.Unmarshal(content, &backupData); err == nil {
 				hasJson = true
 			}
-		} else if strings.HasPrefix(zf.Name, "files/") {
-			relPath := strings.TrimPrefix(zf.Name, "files/")
+		} else if strings.Contains(cleanName, "files/") {
+			idx := strings.Index(cleanName, "files/")
+			relPath := cleanName[idx+len("files/"):]
 			destPath := filepath.Join(sourcePath, relPath)
 			extractZipFile(zf, destPath)
-		} else if strings.HasPrefix(zf.Name, "uploads/") {
-			destPath := filepath.Join(".", zf.Name)
+		} else if strings.Contains(cleanName, "uploads/") {
+			idx := strings.Index(cleanName, "uploads/")
+			relPath := cleanName[idx:]
+			destPath := filepath.Join(".", relPath)
 			extractZipFile(zf, destPath)
 		}
 	}
