@@ -2,11 +2,13 @@ package panel
 
 import (
 	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sun-panel/api/api_v1/common/apiReturn"
 	"sun-panel/api/api_v1/common/base"
@@ -33,7 +35,7 @@ type SiteBackupData struct {
 	ModuleConfigs  []models.ModuleConfig  `json:"moduleConfigs,omitempty"`
 }
 
-// ExportBackup 导出全站备份 (ZIP 文件流下载)
+// ExportBackup 导出全站备份 (ZIP 完整封包后下载)
 func (b *BackupApi) ExportBackup(c *gin.Context) {
 	userInfo, _ := base.GetCurrentUserInfo(c)
 	if userInfo.Role != 1 {
@@ -46,7 +48,7 @@ func (b *BackupApi) ExportBackup(c *gin.Context) {
 	backup.ExportTime = time.Now().Format("2006-01-02 15:04:05")
 	backup.Operator = userInfo.Username
 
-	// 仅管理员权限备份全站数据
+	// 1. 查询数据库全量数据
 	global.Db.Find(&backup.Users)
 	global.Db.Find(&backup.ItemIconGroups)
 	global.Db.Find(&backup.ItemIcons)
@@ -54,39 +56,71 @@ func (b *BackupApi) ExportBackup(c *gin.Context) {
 	global.Db.Find(&backup.SystemSettings)
 	global.Db.Find(&backup.ModuleConfigs)
 
+	// 补全 GORM 忽略字段，防止导出空数据
+	for i := range backup.ItemIcons {
+		if backup.ItemIcons[i].IconJson != "" {
+			_ = json.Unmarshal([]byte(backup.ItemIcons[i].IconJson), &backup.ItemIcons[i].Icon)
+		}
+	}
+	for i := range backup.UserConfigs {
+		if backup.UserConfigs[i].PanelJson != "" {
+			_ = json.Unmarshal([]byte(backup.UserConfigs[i].PanelJson), &backup.UserConfigs[i].Panel)
+		}
+		if backup.UserConfigs[i].SearchEngineJson != "" {
+			_ = json.Unmarshal([]byte(backup.UserConfigs[i].SearchEngineJson), &backup.UserConfigs[i].SearchEngine)
+		}
+	}
+	for i := range backup.ModuleConfigs {
+		if backup.ModuleConfigs[i].ValueJson != "" {
+			_ = json.Unmarshal([]byte(backup.ModuleConfigs[i].ValueJson), &backup.ModuleConfigs[i].Value)
+		}
+	}
+
 	jsonData, err := json.MarshalIndent(backup, "", "  ")
 	if err != nil {
 		apiReturn.Error(c, "序列化备份数据失败: "+err.Error())
 		return
 	}
 
-	// 设置响应头为 zip 下载
-	filename := fmt.Sprintf("sun-panel-backup_%s.zip", time.Now().Format("20060102_150405"))
-	c.Header("Content-Disposition", "attachment; filename="+filename)
-	c.Header("Content-Type", "application/zip")
-	c.Header("Transfer-Encoding", "chunked")
+	// 2. 使用内存 Buffer 打包 ZIP，确保 ZIP 中央目录完全闭合无损
+	var zipBuf bytes.Buffer
+	zipWriter := zip.NewWriter(&zipBuf)
 
-	zipWriter := zip.NewWriter(c.Writer)
-	defer zipWriter.Close()
-
-	// 1. 写入 json 数据
+	// 写入 backup_data.json
 	jsonFileWriter, err := zipWriter.Create("backup_data.json")
 	if err != nil {
+		apiReturn.Error(c, "创建 ZIP 描述文件失败: "+err.Error())
 		return
 	}
-	_, _ = jsonFileWriter.Write(jsonData)
+	if _, err := jsonFileWriter.Write(jsonData); err != nil {
+		apiReturn.Error(c, "写入 JSON 描述失败: "+err.Error())
+		return
+	}
 
-	// 2. 打包上传文件目录 (source_path)
+	// 打包上传文件目录 (source_path)
 	sourcePath := global.Config.GetValueString("base", "source_path")
 	if sourcePath == "" {
 		sourcePath = "./files"
 	}
 	addDirToZip(zipWriter, sourcePath, "files")
 
-	// 尝试打包 uploads 目录（如果存在）
+	// 尝试打包 uploads 目录（若存在）
 	if _, err := os.Stat("./uploads"); err == nil {
 		addDirToZip(zipWriter, "./uploads", "uploads")
 	}
+
+	// 显式 Close，封包 ZIP 并写入完整的中央索引结构
+	if err := zipWriter.Close(); err != nil {
+		apiReturn.Error(c, "封包 ZIP 文件失败: "+err.Error())
+		return
+	}
+
+	// 3. 响应二进制文件流下载
+	filename := fmt.Sprintf("sun-panel-backup_%s.zip", time.Now().Format("20060102_150405"))
+	c.Header("Content-Disposition", "attachment; filename="+filename)
+	c.Header("Content-Type", "application/zip")
+	c.Header("Content-Length", strconv.Itoa(zipBuf.Len()))
+	c.Writer.Write(zipBuf.Bytes())
 }
 
 // ExportJson 导出纯 JSON 格式备份数据
@@ -114,7 +148,7 @@ func (b *BackupApi) ExportJson(c *gin.Context) {
 	apiReturn.SuccessData(c, backup)
 }
 
-// RestoreBackup 统一整站数据恢复入口（支持标准 ZIP、JSON、以及 AES-256 加密备份包）
+// RestoreBackup 从上传的 ZIP 或 JSON 恢复全站数据
 func (b *BackupApi) RestoreBackup(c *gin.Context) {
 	userInfo, _ := base.GetCurrentUserInfo(c)
 	if userInfo.Role != 1 {
@@ -124,124 +158,140 @@ func (b *BackupApi) RestoreBackup(c *gin.Context) {
 
 	file, fileHeader, err := c.Request.FormFile("file")
 	if err != nil {
-		apiReturn.Error(c, "获取上传备份文件失败，请重新选择文件")
+		apiReturn.Error(c, "获取上传文件失败")
 		return
 	}
 	defer file.Close()
 
 	password := strings.TrimSpace(c.PostForm("password"))
-
-	// 1. 读取上传的原始字节流
-	rawBytes, err := io.ReadAll(file)
-	if err != nil {
-		apiReturn.Error(c, "读取上传数据失败: "+err.Error())
-		return
-	}
-
 	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
-	var zipBytes []byte
 
-	// 2. 判断是否提供解密密码或是否为加密包
-	if password != "" {
-		// 用户提供了密码，在内存中使用 AES-256-GCM 验证并解密
-		decrypted, err := cryptoTool.DecryptAES256GCM(rawBytes, password)
+	if ext == ".zip" || ext == ".enc" || ext == ".bin" || password != "" {
+		tempZipFile, err := os.CreateTemp("", "sun-panel-restore-*.zip")
 		if err != nil {
-			apiReturn.Error(c, "解密失败：密码错误或文件已损坏")
+			apiReturn.Error(c, "创建临时文件失败: "+err.Error())
 			return
 		}
-		zipBytes = decrypted
-	} else {
-		// 未提供密码，先检查是否为标准 ZIP 文件 (ZIP 头部标识: PK\x03\x04 或 PK\x05\x06)
-		if len(rawBytes) >= 4 && (string(rawBytes[:4]) == "PK\x03\x04" || string(rawBytes[:4]) == "PK\x05\x06") {
-			zipBytes = rawBytes
-		} else if ext == ".json" {
-			// 处理纯 JSON 文件
-			var backupData SiteBackupData
-			if err := json.Unmarshal(rawBytes, &backupData); err != nil {
-				apiReturn.Error(c, "解析 JSON 格式错误: "+err.Error())
-				return
-			}
-			if err := applyDatabaseRestore(backupData, userInfo); err != nil {
-				apiReturn.Error(c, "恢复数据库失败: "+err.Error())
-				return
-			}
-			apiReturn.Success(c)
-			return
-		} else {
-			// 无法作为普通 ZIP 解析，且不是 JSON
-			apiReturn.Error(c, "检测到该文件为加密备份，请输入 AES-256 解密密码后再试")
-			return
-		}
-	}
+		defer os.Remove(tempZipFile.Name())
+		defer tempZipFile.Close()
 
-	// 3. 将 (解密后或原生的) zipBytes 写入临时文件供安全解压
-	tempZipFile, err := os.CreateTemp("", "sun-panel-restore-*.zip")
-	if err != nil {
-		apiReturn.Error(c, "创建临时解压文件失败: "+err.Error())
-		return
-	}
-	defer os.Remove(tempZipFile.Name())
-	defer tempZipFile.Close()
-
-	if _, err := tempZipFile.Write(zipBytes); err != nil {
-		apiReturn.Error(c, "写入临时解压文件失败: "+err.Error())
-		return
-	}
-
-	zipReader, err := zip.OpenReader(tempZipFile.Name())
-	if err != nil {
 		if password != "" {
-			apiReturn.Error(c, "解密失败：密码错误或文件已损坏")
-		} else {
-			apiReturn.Error(c, "检测到该文件为加密备份，请输入 AES-256 解密密码后再试")
-		}
-		return
-	}
-	defer zipReader.Close()
-
-	var backupData SiteBackupData
-	hasJson := false
-
-	sourcePath := global.Config.GetValueString("base", "source_path")
-	if sourcePath == "" {
-		sourcePath = "./files"
-	}
-
-	for _, zf := range zipReader.File {
-		if zf.Name == "backup_data.json" {
-			rc, err := zf.Open()
+			rawBytes, err := io.ReadAll(file)
 			if err != nil {
-				continue
+				apiReturn.Error(c, "读取上传数据失败: "+err.Error())
+				return
 			}
-			content, _ := io.ReadAll(rc)
-			rc.Close()
-			if err := json.Unmarshal(content, &backupData); err == nil {
-				hasJson = true
+			decrypted, err := cryptoTool.DecryptAES256GCM(rawBytes, password)
+			if err != nil {
+				apiReturn.Error(c, "解密失败：密码错误或文件已损坏")
+				return
 			}
-		} else if strings.HasPrefix(zf.Name, "files/") {
-			relPath := strings.TrimPrefix(zf.Name, "files/")
-			destPath := filepath.Join(sourcePath, relPath)
-			extractZipFile(zf, destPath)
-		} else if strings.HasPrefix(zf.Name, "uploads/") {
-			destPath := filepath.Join(".", zf.Name)
-			extractZipFile(zf, destPath)
+			if _, err := tempZipFile.Write(decrypted); err != nil {
+				apiReturn.Error(c, "写入临时解密文件失败: "+err.Error())
+				return
+			}
+		} else {
+			if _, err := io.Copy(tempZipFile, file); err != nil {
+				apiReturn.Error(c, "写入临时文件失败: "+err.Error())
+				return
+			}
 		}
-	}
 
-	if !hasJson {
-		apiReturn.Error(c, "压缩包内未找到有效的 backup_data.json 描述文件")
-		return
-	}
+		zipReader, err := zip.OpenReader(tempZipFile.Name())
+		if err != nil {
+			if password == "" && (ext == ".enc" || ext == ".bin") {
+				apiReturn.Error(c, "检测到该文件为加密备份，请输入 AES-256 解密密码后再试")
+				return
+			}
+			apiReturn.Error(c, "无法解压 ZIP 文件 (可能文件已损坏): "+err.Error())
+			return
+		}
+		defer zipReader.Close()
 
-	// 4. 覆盖写入数据库
-	if err := applyDatabaseRestore(backupData, userInfo); err != nil {
-		apiReturn.Error(c, "恢复数据库失败: "+err.Error())
-		return
-	}
+		var backupData SiteBackupData
+		hasFoundFile := false
+		var jsonUnmarshalErr error
 
-	apiReturn.SuccessData(c, gin.H{
-		"message": "数据恢复成功！页面即将自动刷新",
-	})
+		sourcePath := global.Config.GetValueString("base", "source_path")
+		if sourcePath == "" {
+			sourcePath = "./files"
+		}
+
+		// 遍历解压并定位 backup_data.json
+		for _, zf := range zipReader.File {
+			cleanName := strings.ReplaceAll(zf.Name, "\\", "/")
+			baseName := filepath.Base(cleanName)
+
+			// 只要文件名是 backup_data.json 且不是目录即解析
+			if baseName == "backup_data.json" && !zf.FileInfo().IsDir() {
+				hasFoundFile = true
+				rc, err := zf.Open()
+				if err != nil {
+					jsonUnmarshalErr = err
+					continue
+				}
+				content, err := io.ReadAll(rc)
+				rc.Close()
+				if err != nil {
+					jsonUnmarshalErr = err
+					continue
+				}
+
+				if err := json.Unmarshal(content, &backupData); err != nil {
+					jsonUnmarshalErr = err
+				} else {
+					jsonUnmarshalErr = nil
+				}
+			} else if strings.Contains(cleanName, "files/") {
+				idx := strings.Index(cleanName, "files/")
+				relPath := cleanName[idx+len("files/"):]
+				destPath := filepath.Join(sourcePath, relPath)
+				extractZipFile(zf, destPath)
+			} else if strings.Contains(cleanName, "uploads/") {
+				idx := strings.Index(cleanName, "uploads/")
+				relPath := cleanName[idx:]
+				destPath := filepath.Join(".", relPath)
+				extractZipFile(zf, destPath)
+			}
+		}
+
+		if !hasFoundFile {
+			apiReturn.Error(c, "压缩包内未找到 backup_data.json 描述文件，请检查压缩包结构")
+			return
+		}
+		if jsonUnmarshalErr != nil {
+			apiReturn.Error(c, "解析 backup_data.json 失败: "+jsonUnmarshalErr.Error())
+			return
+		}
+
+		// 执行数据库恢复更新
+		if err := applyDatabaseRestore(backupData, userInfo); err != nil {
+			apiReturn.Error(c, "恢复数据库失败: "+err.Error())
+			return
+		}
+
+		apiReturn.Success(c)
+	} else if ext == ".json" {
+		content, err := io.ReadAll(file)
+		if err != nil {
+			apiReturn.Error(c, "读取 JSON 文件失败: "+err.Error())
+			return
+		}
+		var backupData SiteBackupData
+		if err := json.Unmarshal(content, &backupData); err != nil {
+			apiReturn.Error(c, "解析 JSON 格式错误: "+err.Error())
+			return
+		}
+
+		if err := applyDatabaseRestore(backupData, userInfo); err != nil {
+			apiReturn.Error(c, "恢复数据库失败: "+err.Error())
+			return
+		}
+
+		apiReturn.Success(c)
+	} else {
+		apiReturn.Error(c, "仅支持 .zip 或 .json 格式的备份文件")
+	}
 }
 
 // 将指定目录打入 zip
@@ -302,7 +352,6 @@ func applyDatabaseRestore(data SiteBackupData, currentUser models.User) error {
 	isAdmin := currentUser.Role == 1
 
 	if isAdmin {
-		// 管理员执行全量恢复
 		if len(data.ItemIconGroups) > 0 {
 			tx.Exec("DELETE FROM item_icon")
 			tx.Exec("DELETE FROM item_icon_group")
@@ -311,6 +360,10 @@ func applyDatabaseRestore(data SiteBackupData, currentUser models.User) error {
 				tx.Create(&g)
 			}
 			for _, item := range data.ItemIcons {
+				if item.IconJson == "" && (item.Icon.Src != "" || item.Icon.Text != "") {
+					b, _ := json.Marshal(item.Icon)
+					item.IconJson = string(b)
+				}
 				tx.Create(&item)
 			}
 		}
@@ -318,6 +371,14 @@ func applyDatabaseRestore(data SiteBackupData, currentUser models.User) error {
 		if len(data.UserConfigs) > 0 {
 			tx.Exec("DELETE FROM user_config")
 			for _, uc := range data.UserConfigs {
+				if uc.PanelJson == "" && uc.Panel != nil {
+					b, _ := json.Marshal(uc.Panel)
+					uc.PanelJson = string(b)
+				}
+				if uc.SearchEngineJson == "" && uc.SearchEngine != nil {
+					b, _ := json.Marshal(uc.SearchEngine)
+					uc.SearchEngineJson = string(b)
+				}
 				tx.Create(&uc)
 			}
 		}
@@ -332,11 +393,14 @@ func applyDatabaseRestore(data SiteBackupData, currentUser models.User) error {
 		if len(data.ModuleConfigs) > 0 {
 			tx.Exec("DELETE FROM module_config")
 			for _, mc := range data.ModuleConfigs {
+				if mc.ValueJson == "" && mc.Value != nil {
+					b, _ := json.Marshal(mc.Value)
+					mc.ValueJson = string(b)
+				}
 				tx.Create(&mc)
 			}
 		}
 	} else {
-		// 普通用户仅覆盖恢复自己的卡片与分组
 		tx.Where("user_id = ?", currentUser.ID).Delete(&models.ItemIcon{})
 		tx.Where("user_id = ?", currentUser.ID).Delete(&models.ItemIconGroup{})
 
@@ -346,11 +410,23 @@ func applyDatabaseRestore(data SiteBackupData, currentUser models.User) error {
 		}
 		for _, item := range data.ItemIcons {
 			item.UserId = currentUser.ID
+			if item.IconJson == "" && (item.Icon.Src != "" || item.Icon.Text != "") {
+				b, _ := json.Marshal(item.Icon)
+				item.IconJson = string(b)
+			}
 			tx.Create(&item)
 		}
 
 		for _, uc := range data.UserConfigs {
 			uc.UserId = currentUser.ID
+			if uc.PanelJson == "" && uc.Panel != nil {
+				b, _ := json.Marshal(uc.Panel)
+				uc.PanelJson = string(b)
+			}
+			if uc.SearchEngineJson == "" && uc.SearchEngine != nil {
+				b, _ := json.Marshal(uc.SearchEngine)
+				uc.SearchEngineJson = string(b)
+			}
 			var exists models.UserConfig
 			if tx.Where("user_id = ?", currentUser.ID).First(&exists).Error == nil {
 				tx.Model(&exists).Updates(&uc)

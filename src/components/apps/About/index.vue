@@ -2,7 +2,7 @@
 import { NDivider, NGradientText, NTag } from 'naive-ui'
 import srcSvglogo from '@/assets/about_logo.png'
 
-const frontVersion = '1.0.11'
+const frontVersion = '1.0.12'
 </script>
 
 <template>
