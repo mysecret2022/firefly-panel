@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import type { UploadFileInfo } from 'naive-ui'
 import {
   NAlert,
@@ -33,7 +33,22 @@ const ms = useMessage()
 const dialog = useDialog()
 const authStore = useAuthStore()
 
-const activeTab = ref(authStore.userInfo?.role === 1 ? 'full-backup' : 'card-backup')
+// 默认激活 Tab：管理员优先进入全量备份，普通用户默认精准激活单账号卡片导入导出 (json-cards)，杜绝空白
+const activeTab = ref(authStore.userInfo?.role === 1 ? 'full-backup' : 'json-cards')
+
+watch(
+  () => authStore.userInfo?.role,
+  (role) => {
+    if (role === 1) {
+      if (!activeTab.value || activeTab.value === 'card-backup')
+        activeTab.value = 'full-backup'
+    }
+    else {
+      activeTab.value = 'json-cards'
+    }
+  },
+  { immediate: true },
+)
 const importWarning = ref<string[]>([])
 const importRoundModalShow = ref(false)
 const exportRoundModalShow = ref(false)

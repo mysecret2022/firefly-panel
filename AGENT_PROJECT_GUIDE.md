@@ -151,3 +151,6 @@ go build -o sun-panel --ldflags="-X sun-panel/global.RUNCODE=release" main.go
    - [x] **图库图标动态可调列数**：突破原先最多 6 个的死锁限制，支持自适应扩展至 12 列，并提供专属排布密度调节器（自适应/4/6/8/10/12列）。
    - [x] **放大弹窗底部留白彻底根除**：底层重构 `RoundCardModal` 的插槽约束与子组件 flex 链条，强制各级卡片和滚动区 100% 充满全部可用高度，告别底部空洞留白。
 
+5. **数据导出导入模块 (ImportExport)**：
+   - [x] **普通用户直接展示单账号导入导出内容**：修复 `activeTab` 默认值与 TabPane 名称 `json-cards` 不匹配导致的空白问题（之前初始化为未定义的 `card-backup`）。普通账户打开该模块直接展示“单账号卡片导入导出 (JSON)”内容，彻底消除“需要点击 Tab 才能展示”的问题。
+
