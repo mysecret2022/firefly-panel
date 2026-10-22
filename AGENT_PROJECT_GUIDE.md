@@ -154,7 +154,11 @@ go build -o sun-panel --ldflags="-X sun-panel/global.RUNCODE=release" main.go
 4. **图库管理与系统弹窗自适应优化**：
    - [x] **图库管理全屏查看器回归原生 NImage**：删除自定义预览浮层上的【复制链接】和【复制 Markdown】标签，彻底恢复原版 Naive UI 原生全屏大图查看器（内置滚轮缩放、放大/缩小/旋转/100%还原工具栏、鼠标拖拽移动，完整无截断展示长图宽图），保留每张卡片底部的【删除此图片】功能。
    - [x] **图库图标动态可调列数**：突破原先最多 6 个的死锁限制，支持自适应扩展至 12 列，并提供专属排布密度调节器（自适应/4/6/8/10/12列）。
-   - [x] **放大弹窗底部留白彻底根除**：底层重构 `RoundCardModal` 的插槽约束与子组件 flex 链条，强制各级卡片和滚动区 100% 充满全部可用高度，告别底部空洞留白。
+   - [x] **放大弹窗底部留白彻底根除**：
+     - 最外层容器声明挂载全尺寸背景与 `background-size: cover; background-repeat: no-repeat;`，彻底避免拉大脱节露底；
+     - 头部 Header / 底部 Footer 设定 `flex-shrink: 0;` 锁定高度；
+     - 彻底清除 `AppStarter` 内部阻断 flex 高度继承的多余 `NSpace` 标签与写死的 `height: 520px`；
+     - 中间内容容器改用 `flex: 1 1 0% !important; min-height: 0 !important; height: auto !important; overflow-y: auto !important;`，完美吸收全部垂直拉伸空间，自适应 100% 铺满无任何死角空白。
 
 5. **数据导出导入模块 (ImportExport)**：
    - [x] **普通用户直接展示单账号导入导出内容**：修复 `activeTab` 默认值与 TabPane 名称 `json-cards` 不匹配导致的空白问题（之前初始化为未定义的 `card-backup`）。普通账户打开该模块直接展示“单账号卡片导入导出 (JSON)”内容，彻底消除“需要点击 Tab 才能展示”的问题。
